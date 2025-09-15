@@ -1,4 +1,4 @@
-package specmate.backend.repository;
+package specmate.backend.repository.user;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import specmate.backend.entity.User;

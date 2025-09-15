@@ -11,7 +11,7 @@ import specmate.backend.dto.user.SignupRequest;
 import specmate.backend.dto.user.SignupResponse;
 import specmate.backend.entity.User;
 import specmate.backend.entity.enums.Role;
-import specmate.backend.repository.UserRepository;
+import specmate.backend.repository.user.UserRepository;
 
 import java.time.Duration;
 import java.time.LocalDateTime;

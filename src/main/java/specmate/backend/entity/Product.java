@@ -44,7 +44,7 @@ public class Product {
     /** 최저가 정보 */
     @Type(JsonBinaryType.class)
     @Column(columnDefinition = "jsonb")
-    private Map<String, Object> lowestInfo;
+    private Map<String, Object> lowestPrice;
 
     @Column(nullable = false)
     private String type;

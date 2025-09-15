@@ -10,9 +10,11 @@ import specmate.backend.dto.user.LoginResponse;
 import specmate.backend.dto.user.SignupRequest;
 import specmate.backend.dto.user.SignupResponse;
 import specmate.backend.entity.User;
+import specmate.backend.entity.enums.Role;
 import specmate.backend.repository.UserRepository;
 
 import java.time.Duration;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -62,6 +64,8 @@ public class AuthService {
                 .email(req.getEmail())
                 .nickname(req.getNickname())
                 .password(encodedPw)
+                .role(Role.USER)
+                .createdAt(LocalDateTime.now())
                 .build();
 
         User saved = userRepository.save(user);

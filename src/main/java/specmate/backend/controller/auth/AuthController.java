@@ -1,12 +1,13 @@
 package specmate.backend.controller.auth;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import specmate.backend.dto.user.LoginRequest;
+import specmate.backend.dto.user.LoginResponse;
 import specmate.backend.dto.user.SignupRequest;
 import specmate.backend.dto.user.SignupResponse;
 import specmate.backend.service.auth.AuthService;
@@ -14,13 +15,36 @@ import specmate.backend.service.auth.AuthService;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@Tag(name = "Auth", description = "회원가입 / 로그인 / 이메일 인증 API")
 public class AuthController {
 
     private final AuthService authService;
 
+    @Operation(summary = "인증번호 전송", description = "사용자 이메일로 인증번호 전송.")
+    @PostMapping("/send-code")
+    public ResponseEntity<String> sendCode(@RequestParam String email) {
+        authService.sendVerificationCode(email);
+        return ResponseEntity.ok("인증번호가 이메일로 발송되었습니다.");
+    }
+
+    @Operation(summary = "인증번호 확인", description = "사용자가 입력한 인증번호 검증")
+    @PostMapping("/verify-code")
+    public ResponseEntity<String> verifyCode(@RequestParam String email, @RequestParam String code) {
+        authService.verifyEmailCode(email, code);
+        return ResponseEntity.ok("이메일 인증이 완료되었습니다.");
+    }
+
+    @Operation(summary = "회원가입", description = "이메일 인증이 완료된 사용자만 회원가입 가능")
     @PostMapping("/signup")
-    public ResponseEntity<SignupResponse> register(@Valid @RequestBody SignupRequest request) {
-        SignupResponse response = authService.signup(request);
+    public ResponseEntity<SignupResponse> register(@Valid @RequestBody SignupRequest req) {
+        SignupResponse response = authService.signup(req);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "로그인", description = "이메일과 비밀번호로 로그인시 JWT 토큰 발급")
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest req) {
+        LoginResponse response = authService.login(req);
         return ResponseEntity.ok(response);
     }
 }

@@ -1,5 +1,6 @@
 package specmate.backend.repository.product;
 
+import io.lettuce.core.dynamic.annotation.Param;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -14,17 +15,45 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
 
     Page<Product> findByType(String type, Pageable pageable);
 
-    @Query(value = "SELECT * FROM products " +
+    @Query(value =
+            "SELECT * FROM products " +
             "WHERE type = :type " +
-            "ORDER BY CAST(REPLACE(lowest_price->>'price', ',', '') AS INT) ASC",
+            "ORDER BY CAST(REPLACE(lowest_price->>'price', ',', '') AS INTEGER) ASC",
             countQuery = "SELECT count(*) FROM products WHERE type = :type",
             nativeQuery = true)
-    Page<Product> findByTypeOrderByLowestPriceAsc(String type, Pageable pageable);
+    Page<Product> findByTypeOrderByLowestPriceAsc(@Param("type") String type, Pageable pageable);
 
-    @Query(value = "SELECT * FROM products " +
+    @Query(value =
+            "SELECT * FROM products " +
             "WHERE type = :type " +
-            "ORDER BY CAST(REPLACE(lowest_price->>'price', ',', '') AS INT) DESC",
+            "ORDER BY CAST(REPLACE(lowest_price->>'price', ',', '') AS INTEGER) DESC",
             countQuery = "SELECT count(*) FROM products WHERE type = :type",
             nativeQuery = true)
-    Page<Product> findByTypeOrderByLowestPriceDesc(String type, Pageable pageable);
+    Page<Product> findByTypeOrderByLowestPriceDesc(@Param("type") String type, Pageable pageable);
+
+    @Query(value =
+            "SELECT * FROM products " +
+            "WHERE type = :type AND manufacturer = :manufacturer " +
+            "ORDER BY CAST(REPLACE(lowest_price->>'price', ',', '') AS INTEGER) ASC",
+            countQuery = "SELECT count(*) FROM products WHERE type = :type AND manufacturer = :manufacturer",
+            nativeQuery = true)
+    Page<Product> findByTypeAndManufacturerOrderByLowestPriceAsc(
+            @Param("type") String type,
+            @Param("manufacturer") String manufacturer,
+            Pageable pageable);
+
+    @Query(value =
+            "SELECT * FROM products " +
+            "WHERE type = :type AND manufacturer = :manufacturer " +
+            "ORDER BY CAST(REPLACE(lowest_price->>'price', ',', '') AS INTEGER) DESC",
+            countQuery = "SELECT count(*) FROM products WHERE type = :type AND manufacturer = :manufacturer",
+            nativeQuery = true)
+    Page<Product> findByTypeAndManufacturerOrderByLowestPriceDesc(
+            @Param("type") String type,
+            @Param("manufacturer") String manufacturer,
+            Pageable pageable);
+
+    Page<Product> findByTypeAndManufacturerOrderByPopRankAsc(String type, String manufacturer, Pageable pageable);
+
+    Page<Product> findByTypeOrderByPopRankAsc(String type, Pageable pageable);
 }

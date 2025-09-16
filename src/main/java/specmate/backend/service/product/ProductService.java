@@ -2,7 +2,9 @@ package specmate.backend.service.product;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import specmate.backend.dto.product.ProductRequest;
 import specmate.backend.dto.product.ProductResponse;
@@ -55,15 +57,27 @@ public class ProductService {
     ) {
         Page<Product> products;
 
-        if (manufacturer != null && !manufacturer.isEmpty()) {
-            products = productRepository.findByTypeAndManufacturer(type, manufacturer, pageable);
+        boolean hasManufacturer = (manufacturer != null && !manufacturer.isEmpty());
+
+        if (hasManufacturer) {
+            if ("priceAsc".equalsIgnoreCase(sort)) {
+                products = productRepository.findByTypeAndManufacturerOrderByLowestPriceAsc(type, manufacturer, pageable);
+            } else if ("priceDesc".equalsIgnoreCase(sort)) {
+                products = productRepository.findByTypeAndManufacturerOrderByLowestPriceDesc(type, manufacturer, pageable);
+            } else if ("popRank".equalsIgnoreCase(sort)) {
+                products = productRepository.findByTypeAndManufacturerOrderByPopRankAsc(type, manufacturer, pageable);
+            } else {
+                products = productRepository.findByTypeAndManufacturerOrderByPopRankAsc(type, manufacturer, pageable);
+            }
         } else {
             if ("priceAsc".equalsIgnoreCase(sort)) {
                 products = productRepository.findByTypeOrderByLowestPriceAsc(type, pageable);
             } else if ("priceDesc".equalsIgnoreCase(sort)) {
                 products = productRepository.findByTypeOrderByLowestPriceDesc(type, pageable);
+            } else if ("popRank".equalsIgnoreCase(sort)) {
+                products = productRepository.findByTypeOrderByPopRankAsc(type, pageable);
             } else {
-                products = productRepository.findByType(type, pageable);
+                products = productRepository.findByTypeOrderByPopRankAsc(type, pageable);
             }
         }
 

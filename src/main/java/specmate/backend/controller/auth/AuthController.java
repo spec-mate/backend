@@ -47,4 +47,18 @@ public class AuthController {
         LoginResponse response = authService.login(req);
         return ResponseEntity.ok(response);
     }
+
+    @Operation(summary = "로그아웃", description = "AccessToken을 블랙리스트 처리하고 RefreshToken을 제거합니다.")
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@RequestHeader("Authorization") String authorizationHeader) {
+        String token = authorizationHeader.replace("Bearer ", "");
+        authService.logout(token);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(summary = "토큰 재발급", description = "RefreshToken을 사용해 새로운 AccessToken을 발급합니다.")
+    @PostMapping("/refresh")
+    public ResponseEntity<LoginResponse> refresh(@RequestParam String refreshToken) {
+        return ResponseEntity.ok(authService.refreshToken(refreshToken));
+    }
 }

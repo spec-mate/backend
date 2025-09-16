@@ -99,4 +99,41 @@ public class AuthService {
 
         return new LoginResponse(accessToken, refreshToken);
     }
+
+    // 로그아웃
+    public void logout(String accessToken) {
+        if (!jwtTokenProvider.validateToken(accessToken)) {
+            throw new RuntimeException("유효하지 않은 Access Token입니다.");
+        }
+
+        String userId = jwtTokenProvider.getUserId(accessToken);
+
+        // Redis에서 RefreshToken 제거
+        redisTemplate.delete("refresh:" + userId);
+
+        // AccessToken도 블랙리스트 처리(선택 사항, 보안 강화용)
+        long expiration = jwtTokenProvider.getExpiration(accessToken);
+        redisTemplate.opsForValue().set("blacklist:" + accessToken, "logout", Duration.ofMillis(expiration));
+    }
+
+    // 토큰 리프레시
+    public LoginResponse refreshToken(String refreshToken) {
+        if (!jwtTokenProvider.validateToken(refreshToken)) {
+            throw new RuntimeException("Refresh Token이 유효하지 않습니다.");
+        }
+
+        String userId = jwtTokenProvider.getUserId(refreshToken);
+        String saved = (String) redisTemplate.opsForValue().get("refresh:" + userId);
+
+        if (saved == null || !saved.equals(refreshToken)) {
+            throw new RuntimeException("Refresh Token이 일치하지 않거나 만료되었습니다.");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String newAccessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+
+        return new LoginResponse(newAccessToken, refreshToken);
+    }
 }

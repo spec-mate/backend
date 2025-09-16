@@ -2,6 +2,7 @@ package specmate.backend.service.product;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -49,6 +50,10 @@ public class ProductService {
                 .build();
     }
 
+    @Cacheable(
+            value = "productsByType",
+            key = "#type + ':' + (#manufacturer != null ? #manufacturer : '') + ':' + #sort + ':' + #pageable.pageNumber + ':' + #pageable.pageSize"
+    )
     public Page<ProductResponse> getProductsByType(
             String type,
             String manufacturer,

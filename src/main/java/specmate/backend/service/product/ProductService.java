@@ -6,6 +6,8 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Service;
 import specmate.backend.dto.product.ProductRequest;
 import specmate.backend.dto.product.ProductResponse;
@@ -13,6 +15,7 @@ import specmate.backend.entity.Product;
 import specmate.backend.repository.product.ProductRepository;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -20,6 +23,7 @@ import java.util.stream.Collectors;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final RedisTemplate<String, Object> redisTemplate;
 
     private ProductResponse toResponse(Product product) {
         return ProductResponse.builder()
@@ -50,18 +54,20 @@ public class ProductService {
                 .build();
     }
 
-    @Cacheable(
-            value = "productsByType",
-            key = "#type + ':' + (#manufacturer != null ? #manufacturer : '') + ':' + #sort + ':' + #pageable.pageNumber + ':' + #pageable.pageSize"
-    )
-    public Page<ProductResponse> getProductsByType(
-            String type,
-            String manufacturer,
-            String sort,
-            Pageable pageable
-    ) {
-        Page<Product> products;
+    public Page<ProductResponse> getProductsByType(String type, String manufacturer, String sort, Pageable pageable) {
+        String cacheKey = "productsByType:" + type + ":" +
+                (manufacturer != null ? manufacturer : "") + ":" +
+                sort + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize();
 
+        ValueOperations<String, Object> ops = redisTemplate.opsForValue();
+
+        Object cached = ops.get(cacheKey);
+        if (cached != null) {
+            System.out.println("[REDIS HIT] " + cacheKey);
+            return (Page<ProductResponse>) cached;
+        }
+
+        Page<Product> products;
         boolean hasManufacturer = (manufacturer != null && !manufacturer.isEmpty());
 
         if (hasManufacturer) {
@@ -69,8 +75,6 @@ public class ProductService {
                 products = productRepository.findByTypeAndManufacturerOrderByLowestPriceAsc(type, manufacturer, pageable);
             } else if ("priceDesc".equalsIgnoreCase(sort)) {
                 products = productRepository.findByTypeAndManufacturerOrderByLowestPriceDesc(type, manufacturer, pageable);
-            } else if ("popRank".equalsIgnoreCase(sort)) {
-                products = productRepository.findByTypeAndManufacturerOrderByPopRankAsc(type, manufacturer, pageable);
             } else {
                 products = productRepository.findByTypeAndManufacturerOrderByPopRankAsc(type, manufacturer, pageable);
             }
@@ -79,14 +83,16 @@ public class ProductService {
                 products = productRepository.findByTypeOrderByLowestPriceAsc(type, pageable);
             } else if ("priceDesc".equalsIgnoreCase(sort)) {
                 products = productRepository.findByTypeOrderByLowestPriceDesc(type, pageable);
-            } else if ("popRank".equalsIgnoreCase(sort)) {
-                products = productRepository.findByTypeOrderByPopRankAsc(type, pageable);
             } else {
                 products = productRepository.findByTypeOrderByPopRankAsc(type, pageable);
             }
         }
 
-        return products.map(this::toResponse);
+        Page<ProductResponse> response = products.map(this::toResponse);
+
+        ops.set(cacheKey, response, 10, TimeUnit.MINUTES);
+
+        return response;
     }
 
     public List<ProductResponse> getAllProducts() {

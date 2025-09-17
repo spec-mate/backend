@@ -31,14 +31,14 @@ public class UserEstimateService {
 
     /** 견적 생성 */
     @Transactional
-    public UserEstimateResponse createEstimate(UserEstimateRequest request) {
-        User user = userRepository.findById(request.getUserId())
+    public UserEstimateResponse createEstimate(UserEstimateRequest req) {
+        User user = userRepository.findById(req.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         UserEstimate estimate = UserEstimate.builder()
                 .user(user)
-                .title(request.getTitle())
-                .description(request.getDescription())
+                .title(req.getTitle())
+                .description(req.getDescription())
                 .totalPrice(0)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -69,23 +69,23 @@ public class UserEstimateService {
 
     /** 특정 견적에 제품 추가 */
     @Transactional
-    public UserEstimateProductResponse addProductToEstimate(String estimateId, UserEstimateProductRequest request) {
+    public UserEstimateProductResponse addProductToEstimate(String estimateId, UserEstimateProductRequest req) {
         UserEstimate estimate = userEstimateRepository.findById(estimateId)
                 .orElseThrow(() -> new RuntimeException("Estimate not found"));
 
-        Product product = productRepository.findById(Integer.valueOf(request.getProductId()))
+        Product product = productRepository.findById(Integer.valueOf(req.getProductId()))
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
         int unitPrice = Integer.parseInt(product.getLowestPrice().get("price").toString().replace(",", ""));
-        int totalPrice = unitPrice * request.getQuantity();
+        int totalPrice = unitPrice * req.getQuantity();
 
         LocalDateTime now = LocalDateTime.now();
 
         UserEstimateProduct estimateProduct = UserEstimateProduct.builder()
                 .userEstimate(estimate)
                 .product(product)
-                .category(request.getCategory())
-                .quantity(request.getQuantity())
+                .category(req.getCategory())
+                .quantity(req.getQuantity())
                 .unitPrice(unitPrice)
                 .totalPrice(totalPrice)
                 .createdAt(now)
@@ -99,9 +99,9 @@ public class UserEstimateService {
 
     /** 자동으로 견적 찾아 제품 추가 */
     @Transactional
-    public UserEstimateProductResponse saveToMyEstimate(String userId, UserEstimateProductRequest request) {
+    public UserEstimateProductResponse saveToMyEstimate(String userId, UserEstimateProductRequest req) {
         UserEstimate estimate = getOrCreateDefaultEstimate(userId);
-        return addProductToEstimate(estimate.getId(), request);
+        return addProductToEstimate(estimate.getId(), req);
     }
 
     /** 견적에 포함된 제품들 조회 */

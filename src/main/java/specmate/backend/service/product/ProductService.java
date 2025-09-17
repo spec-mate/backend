@@ -2,10 +2,7 @@ package specmate.backend.service.product;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.stereotype.Service;
@@ -40,17 +37,17 @@ public class ProductService {
                 .build();
     }
 
-    private Product toEntity(ProductRequest request) {
+    private Product toEntity(ProductRequest req) {
         return Product.builder()
-                .name(request.getName())
-                .image(request.getImage())
-                .popRank(request.getPopRank())
-                .regDate(request.getRegDate())
-                .options(request.getOptions())
-                .priceInfo(request.getPriceInfo())
-                .lowestPrice(request.getLowestPrice())
-                .type(request.getType())
-                .manufacturer(request.getManufacturer())
+                .name(req.getName())
+                .image(req.getImage())
+                .popRank(req.getPopRank())
+                .regDate(req.getRegDate())
+                .options(req.getOptions())
+                .priceInfo(req.getPriceInfo())
+                .lowestPrice(req.getLowestPrice())
+                .type(req.getType())
+                .manufacturer(req.getManufacturer())
                 .build();
     }
 
@@ -108,24 +105,24 @@ public class ProductService {
                 .orElseThrow(() -> new RuntimeException("Product not found"));
     }
 
-    public ProductResponse createProduct(ProductRequest request) {
-        Product product = toEntity(request);
+    public ProductResponse createProduct(ProductRequest req) {
+        Product product = toEntity(req);
         return toResponse(productRepository.save(product));
     }
 
-    public ProductResponse updateProduct(Integer id, ProductRequest request) {
+    public ProductResponse updateProduct(Integer id, ProductRequest req) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        product.setName(request.getName());
-        product.setImage(request.getImage());
-        product.setPopRank(request.getPopRank());
-        product.setRegDate(request.getRegDate());
-        product.setOptions(request.getOptions());
-        product.setPriceInfo(request.getPriceInfo());
-        product.setLowestPrice(request.getLowestPrice());
-        product.setType(request.getType());
-        product.setManufacturer(request.getManufacturer());
+        product.setName(req.getName());
+        product.setImage(req.getImage());
+        product.setPopRank(req.getPopRank());
+        product.setRegDate(req.getRegDate());
+        product.setOptions(req.getOptions());
+        product.setPriceInfo(req.getPriceInfo());
+        product.setLowestPrice(req.getLowestPrice());
+        product.setType(req.getType());
+        product.setManufacturer(req.getManufacturer());
 
         return toResponse(productRepository.save(product));
     }

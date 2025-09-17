@@ -41,17 +41,17 @@ public class UserService {
 
     // 정보 수정
     @Transactional
-    public User updateMyInfo(UserUpdateRequest request) {
+    public User updateMyInfo(UserUpdateRequest req) {
         String email = getCurrentUserEmail();
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("해당 유저를 찾을 수 없습니다."));
 
-        if (request.getNickname() != null && !request.getNickname().isBlank()) {
-            user.setNickname(request.getNickname());
+        if (req.getNickname() != null && !req.getNickname().isBlank()) {
+            user.setNickname(req.getNickname());
         }
 
-        if (request.getPassword() != null && !request.getPassword().isBlank()) {
-            user.setPassword(passwordEncoder.encode(request.getPassword()));
+        if (req.getPassword() != null && !req.getPassword().isBlank()) {
+            user.setPassword(passwordEncoder.encode(req.getPassword()));
         }
 
         user.setUpdatedAt(java.time.LocalDateTime.now());

@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import specmate.backend.entity.Product;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product, Integer> {
 
@@ -56,4 +57,6 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
     Page<Product> findByTypeAndManufacturerOrderByPopRankAsc(String type, String manufacturer, Pageable pageable);
 
     Page<Product> findByTypeOrderByPopRankAsc(String type, Pageable pageable);
+
+    Optional<Object> findByNameContainingIgnoreCase(String normalizedName);
 }

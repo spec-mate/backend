@@ -3,6 +3,7 @@ package specmate.backend.config;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Component;
+import specmate.backend.entity.enums.Role;
 
 import java.security.Key;
 import java.util.Date;
@@ -15,10 +16,11 @@ public class JwtTokenProvider {
     private final long refreshTokenValidity = 1000L * 60 * 60 * 24 * 7;
 
     // Access Token 생성
-    public String createAccessToken(String userId, String email) {
+    public String createAccessToken(String userId, String email, Role role) {
         return Jwts.builder()
                 .setSubject(userId)
                 .claim("email", email)
+                .claim("role", role.name())   // 권한 추가
                 .setExpiration(new Date(System.currentTimeMillis() + accessTokenValidity))
                 .signWith(key)
                 .compact();
@@ -37,6 +39,15 @@ public class JwtTokenProvider {
     public String getUserId(String token) {
         return Jwts.parserBuilder().setSigningKey(key).build()
                 .parseClaimsJws(token).getBody().getSubject();
+    }
+
+    public String getRole(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get("role", String.class);
     }
 
     // 토큰 유효성 검사

@@ -23,7 +23,7 @@ public class UserService {
         return userRepository.findAll();
     }
 
-    // 로그인한 사용자의 Email 조호
+    // 로그인한 사용자의 Email 조회
     private String getCurrentUserEmail() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {

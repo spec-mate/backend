@@ -69,9 +69,13 @@ public class UserEstimateService {
 
     /** 특정 견적에 제품 추가 */
     @Transactional
-    public UserEstimateProductResponse addProductToEstimate(String estimateId, UserEstimateProductRequest req) {
+    public UserEstimateProductResponse addProductToEstimate(String estimateId, UserEstimateProductRequest req, String userId) {
         UserEstimate estimate = userEstimateRepository.findById(estimateId)
                 .orElseThrow(() -> new RuntimeException("Estimate not found"));
+
+        if (!estimate.getUser().getId().equals(userId)) {
+            throw new RuntimeException("권한이 없습니다.");
+        }
 
         Product product = productRepository.findById(Integer.valueOf(req.getProductId()))
                 .orElseThrow(() -> new RuntimeException("Product not found"));
@@ -101,7 +105,7 @@ public class UserEstimateService {
     @Transactional
     public UserEstimateProductResponse saveToMyEstimate(String userId, UserEstimateProductRequest req) {
         UserEstimate estimate = getOrCreateDefaultEstimate(userId);
-        return addProductToEstimate(estimate.getId(), req);
+        return addProductToEstimate(estimate.getId(), req, userId);
     }
 
     /** 견적에 포함된 제품들 조회 */
@@ -120,10 +124,36 @@ public class UserEstimateService {
                 .collect(Collectors.toList());
     }
 
+    /** 특정 견적에서 특정 제품 삭제 **/
+    @Transactional
+    public void removeProductFromEstimate(String estimateProductId, String userId) {
+        UserEstimateProduct estimateProduct = userEstimateProductRepository.findById(estimateProductId)
+                .orElseThrow(() -> new RuntimeException("Estimate product not found"));
+
+        UserEstimate estimate = estimateProduct.getUserEstimate();
+
+        if (!estimate.getUser().getId().equals(userId)) {
+            throw new RuntimeException("권한이 없습니다.");
+        }
+
+        int newTotalPrice = (estimate.getTotalPrice() == null ? 0 : estimate.getTotalPrice()) - estimateProduct.getTotalPrice();
+        estimate.setTotalPrice(Math.max(newTotalPrice, 0));
+
+        userEstimateProductRepository.delete(estimateProduct);
+    }
+
+
     /** 견적 삭제 */
     @Transactional
-    public void deleteEstimate(String estimateId) {
-        userEstimateRepository.deleteById(estimateId);
+    public void deleteEstimate(String estimateId, String userId) {
+        UserEstimate estimate = userEstimateRepository.findById(estimateId)
+                .orElseThrow(() -> new RuntimeException("Estimate not found"));
+
+        if (!estimate.getUser().getId().equals(userId)) {
+            throw new RuntimeException("권한이 없습니다.");
+        }
+
+        userEstimateRepository.delete(estimate);
     }
 
     /** 변환 메서드 */

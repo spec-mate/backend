@@ -20,7 +20,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         String token = (String) session.getAttributes().get("token");
-        log.info("WebSocket이 연결되었습니다. token={}", token);
+        log.info("WebSocket 연결됨. token={}", token);
     }
 
     /** 클라이언트 → 서버 메시지 처리 */
@@ -32,8 +32,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         // "생각중" 상태 전송
         session.sendMessage(new TextMessage("{\"type\":\"thinking\"}"));
 
-        // GPT 처리 (토큰과 프롬프트 함께 전달)
-        GPTResponse gptResponse = chatService.processUserPrompt(token, userPrompt);
+        // 토큰 기반 처리
+        GPTResponse gptResponse = chatService.processUserPromptWithToken(token, userPrompt);
 
         // 결과 전송
         session.sendMessage(new TextMessage(gptResponse.getMessage()));

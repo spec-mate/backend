@@ -58,5 +58,5 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
 
     Page<Product> findByTypeOrderByPopRankAsc(String type, Pageable pageable);
 
-    Optional<Object> findByNameContainingIgnoreCase(String normalizedName);
+    List<Product> findByNameContainingIgnoreCase(String normalizedName);
 }

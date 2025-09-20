@@ -45,12 +45,27 @@ public class ChatMessage {
     @Column(nullable = false)
     private MessageStatus status = MessageStatus.PENDING;
 
-    private Integer tokensUsed;
-    private Integer latencyMs;
+    @Column(nullable = false)
+    private Integer tokensUsed = 0;
 
     @Column(nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private Integer latencyMs = 0;
 
     @Column(nullable = false)
-    private LocalDateTime updatedAt = LocalDateTime.now();
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    public void prePersist() {
+        LocalDateTime now = LocalDateTime.now();
+        this.createdAt = now;
+        this.updatedAt = now;
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }

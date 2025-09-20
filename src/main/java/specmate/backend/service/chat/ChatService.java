@@ -12,10 +12,7 @@ import specmate.backend.dto.chat.GPTResponse;
 import specmate.backend.entity.*;
 import specmate.backend.entity.enums.MessageStatus;
 import specmate.backend.entity.enums.SenderType;
-import specmate.backend.repository.chat.AiEstimateRepository;
-import specmate.backend.repository.chat.ChatMessageRepository;
-import specmate.backend.repository.chat.ChatRoomRepository;
-import specmate.backend.repository.chat.EstimateProductRepository;
+import specmate.backend.repository.chat.*;
 import specmate.backend.repository.product.ProductRepository;
 import specmate.backend.repository.user.UserRepository;
 
@@ -24,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -42,28 +40,29 @@ public class ChatService {
     private final EstimateProductRepository estimateProductRepository;
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final OkHttpClient okHttpClient = new OkHttpClient();
+    private final AssistantRepository assistantRepository;
 
-    /** 유저 프롬프트 처리 */
-    public GPTResponse processUserPrompt(String token, String prompt) throws IOException {
-        String userId = jwtTokenProvider.getUserId(token);
-
-        // DB에서 제품 후보 조회
+    /** REST API용 - userId 직접 받음 */
+    public GPTResponse processUserPrompt(String userId, String prompt) throws IOException {
         List<Product> products = productRepository.findAll();
-
-        // GPT 응답
         GPTResponse gptResponse = callGptApi(prompt, products);
-
-        // 채팅 견적 저장
         saveChatAndEstimate(userId, prompt, gptResponse);
-
         return gptResponse;
     }
 
-
+    /** WebSocket용 - token 받아서 userId 추출 */
+    public GPTResponse processUserPromptWithToken(String token, String prompt) throws IOException {
+        String userId = jwtTokenProvider.getUserId(token);
+        return processUserPrompt(userId, prompt);
+    }
 
     /** OpenAI API 호출 */
     public GPTResponse callGptApi(String prompt, List<Product> products) throws IOException {
-        OkHttpClient client = new OkHttpClient();
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(30, TimeUnit.SECONDS)  // 연결 시도 제한
+                .writeTimeout(30, TimeUnit.SECONDS)    // 요청 본문 전송 제한
+                .readTimeout(120, TimeUnit.SECONDS)    // 응답 대기 시간 충분히 확보
+                .build();
 
         // DB에서 조회된 부품들을 문자열로 변환
         StringBuilder productList = new StringBuilder();
@@ -97,7 +96,7 @@ public class ChatService {
 
         // OpenAI API 요청 JSON 구성
         Map<String, Object> jsonMap = new HashMap<>();
-        jsonMap.put("model", "gpt-5o-mini");
+        jsonMap.put("model", "gpt-5-mini-2025-08-07");
         jsonMap.put("messages", List.of(
                 Map.of("role", "user", "content", finalPrompt)
         ));
@@ -170,25 +169,43 @@ public class ChatService {
                 .build();
         chatMessageRepository.save(assistantMessage);
 
-        // 6) AiEstimate 생성
+        // 6) AiEstimate 생성 (Assistant 조회 + fallback 생성)
+        Assistant defaultAssistant = assistantRepository.findByName("default")
+                .orElseGet(() -> {
+                    Assistant newAssistant = Assistant.builder()
+                            .name("default")
+                            .description("자동 생성된 기본 어시스턴트")
+                            .instruction("기본 프롬프트")
+                            .model("gpt-5-mini-2025-08-07")
+                            .isActive(true)
+                            .build();
+                    return assistantRepository.save(newAssistant);
+                });
+
         AiEstimate aiEstimate = AiEstimate.builder()
-                .chatRoom(room) // 객체 형태
+                .chatRoom(room)
                 .user(room.getUser())
-                .assistant(room.getAssistant())
+                .assistant(defaultAssistant)
                 .message(assistantMessage)
                 .title("GPT 추천 견적")
                 .status("success")
                 .totalPrice(0)
-                .createdAt(LocalDateTime.now())
                 .build();
-        aiEstimateRepository.save(aiEstimate);
 
+        aiEstimateRepository.save(aiEstimate);
         // 7) GPT 응답에서 상품명 추출 & 전처리
         String normalizedName = normalizeProductName(gptResponseText);
+        if (normalizedName == null || normalizedName.trim().isEmpty()) {
+            normalizedName = "없음";
+        }
 
         // 8) DB 탐색
-        Product product = (Product) productRepository.findByNameContainingIgnoreCase(normalizedName)
-                .orElse(null);
+        List<Product> candidates = productRepository.findByNameContainingIgnoreCase(normalizedName);
+
+        Product product = null;
+        if (!candidates.isEmpty()) {
+            product = candidates.get(0); // 첫 번째 결과만 사용
+        }
 
         if (product != null) {
             // 9) EstimateProduct 생성
@@ -196,12 +213,12 @@ public class ChatService {
             EstimateProduct ep = EstimateProduct.builder()
                     .aiEstimate(aiEstimate)
                     .product(product)
-                    .aiName(normalizedName)
+                    .aiName(normalizedName.isEmpty() ? "알수없음" : normalizedName)
                     .matched(true)
                     .similarity(1.0f)
                     .quantity(1)
-                    .unitPrice(unitPrice)
-                    .totalPrice(unitPrice)
+                    .unitPrice(unitPrice != null ? unitPrice : 0)
+                    .totalPrice(unitPrice != null ? unitPrice : 0)
                     .createdAt(LocalDateTime.now())
                     .build();
             estimateProductRepository.save(ep);
@@ -222,11 +239,18 @@ public class ChatService {
     /** Product에서 최저가 추출 */
     private Integer extractLowestPrice(Product product) {
         if (product.getLowestPrice() != null) {
-            String priceStr = (String) product.getLowestPrice().get("price");
-            return Integer.parseInt(priceStr.replaceAll("[^0-9]", ""));
+            Object priceObj = product.getLowestPrice().get("price");
+            if (priceObj != null) {
+                String priceStr = priceObj.toString().replaceAll("[^0-9]", "");
+                if (!priceStr.isEmpty()) {
+                    return Integer.parseInt(priceStr);
+                }
+            }
         }
         return 0;
     }
+
+
 
     /** 유저의 채팅방 목록 조회 */
     public List<ChatRoom> getUserChatRooms(String userId) {

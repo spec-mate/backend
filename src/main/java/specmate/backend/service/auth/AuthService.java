@@ -12,7 +12,6 @@ import specmate.backend.dto.user.SignupResponse;
 import specmate.backend.entity.User;
 import specmate.backend.entity.enums.Role;
 import specmate.backend.repository.user.UserRepository;
-import java.util.UUID;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -60,10 +59,8 @@ public class AuthService {
         }
 
         String encodedPw = passwordEncoder.encode(req.getPassword());
-        String uuid = UUID.randomUUID().toString();
 
         User user = User.builder()
-                .id(uuid)
                 .email(req.getEmail())
                 .nickname(req.getNickname())
                 .password(encodedPw)

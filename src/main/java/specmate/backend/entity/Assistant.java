@@ -25,7 +25,6 @@ public class Assistant {
     private String description;
 
     @Lob
-    @Column(columnDefinition = "TEXT")
     private String instruction; // system prompt
 
     private String model;

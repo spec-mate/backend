@@ -3,7 +3,7 @@ package specmate.backend.entity;
 import specmate.backend.entity.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
-//import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.annotations.UuidGenerator;
 
 import java.time.LocalDateTime;
 
@@ -15,7 +15,7 @@ public class User {
 
     @Id
     @GeneratedValue
-//    @UuidGenerator
+    @UuidGenerator
     private String id;
 
     @Column(nullable = false, unique = true)
@@ -26,7 +26,7 @@ public class User {
 
     @Column(nullable = false)
     private String password;
-    
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Role role = Role.USER;

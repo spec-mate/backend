@@ -6,10 +6,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import specmate.backend.dto.user.LoginRequest;
-import specmate.backend.dto.user.LoginResponse;
-import specmate.backend.dto.user.SignupRequest;
-import specmate.backend.dto.user.SignupResponse;
+import specmate.backend.dto.user.*;
 import specmate.backend.service.auth.AuthService;
 
 @RestController
@@ -22,15 +19,15 @@ public class AuthController {
 
     @Operation(summary = "인증번호 전송", description = "사용자 이메일로 인증번호 전송.")
     @PostMapping("/send-code")
-    public ResponseEntity<String> sendCode(@RequestParam String email) {
-        authService.sendVerificationCode(email);
+    public ResponseEntity<String> sendCode(@RequestBody EmailRequest request) {
+        authService.sendVerificationCode(request.getEmail());
         return ResponseEntity.ok("인증번호가 이메일로 발송되었습니다.");
     }
 
     @Operation(summary = "인증번호 확인", description = "사용자가 입력한 인증번호 검증")
     @PostMapping("/verify-code")
-    public ResponseEntity<String> verifyCode(@RequestParam String email, @RequestParam String code) {
-        authService.verifyEmailCode(email, code);
+    public ResponseEntity<String> verifyCode(@RequestBody VerifyCodeRequest request) {
+        authService.verifyEmailCode(request.getEmail(), request.getCode());
         return ResponseEntity.ok("이메일 인증이 완료되었습니다.");
     }
 

@@ -10,7 +10,8 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addMapping("/**")
                 .allowedOrigins(
                         "http://localhost:5173",
-                        "https://specmate-frontend-dev.onrender.com"
+                        "https://specmate-frontend-dev.onrender.com",
+                        "https://specmate.vercel.app"
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
                 .allowedHeaders("*")

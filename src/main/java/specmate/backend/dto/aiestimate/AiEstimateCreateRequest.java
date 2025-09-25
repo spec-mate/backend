@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AiEstimateRequest {
+public class AiEstimateCreateRequest {
     private String chatRoomId;   // 채팅방 ID (optional)
     private String prompt;       // 유저 입력
 }

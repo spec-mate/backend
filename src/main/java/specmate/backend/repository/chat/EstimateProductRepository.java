@@ -8,5 +8,9 @@ import java.util.List;
 
 @Repository
 public interface EstimateProductRepository extends JpaRepository<EstimateProduct, String> {
+    // 특정 AiEstimate ID 기준으로 전체 조회
     List<EstimateProduct> findAllByAiEstimateId(String aiEstimateId);
+
+    // 특정 AiEstimate ID 기준으로 전체 삭제
+    void deleteAllByAiEstimateId(String aiEstimateId);
 }

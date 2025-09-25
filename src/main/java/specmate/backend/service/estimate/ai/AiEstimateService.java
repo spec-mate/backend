@@ -1,38 +1,46 @@
 package specmate.backend.service.estimate.ai;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import specmate.backend.dto.aiestimate.AiEstimateCreateRequest;
 import specmate.backend.dto.aiestimate.AiEstimateResponse;
+import specmate.backend.dto.aiestimate.AiEstimateUpdateRequest;
 import specmate.backend.dto.product.ProductResponse;
 import specmate.backend.entity.*;
 import specmate.backend.repository.chat.AiEstimateRepository;
 import specmate.backend.repository.chat.AssistantRepository;
 import specmate.backend.repository.chat.EstimateProductRepository;
 import specmate.backend.repository.product.ProductRepository;
-import specmate.backend.utils.PriceUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AiEstimateService {
 
     private final AiEstimateRepository aiEstimateRepository;
     private final EstimateProductRepository estimateProductRepository;
-    private final AssistantRepository assistantRepository;
     private final ProductRepository productRepository;
+    private final AssistantRepository assistantRepository;
 
-    /** AI 견적 생성 */
+
+    @Transactional
     public AiEstimate createEstimate(ChatRoom room, ChatMessage assistantMessage, String gptResponseText) {
-        // 1) 어시스턴트 조회 or 생성
+        // 1) 기본 Assistant 조회 또는 생성
         Assistant defaultAssistant = assistantRepository.findByName("default")
                 .orElseGet(() -> assistantRepository.save(
                         Assistant.builder()
                                 .name("default")
                                 .description("자동 생성된 기본 어시스턴트")
                                 .instruction("기본 프롬프트")
-                                .model("gpt-5-mini-2025-08-07")
+                                .model("gpt-4o-mini")
                                 .isActive(true)
                                 .build()
                 ));
@@ -46,62 +54,111 @@ public class AiEstimateService {
                 .title("GPT 추천 견적")
                 .status("success")
                 .totalPrice(0)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
                 .build();
         aiEstimateRepository.save(aiEstimate);
 
-        // 3) GPT 응답에서 상품명 추출
-        String normalizedName = normalizeProductName(gptResponseText);
-        if (normalizedName == null || normalizedName.trim().isEmpty()) {
-            normalizedName = "없음";
-        }
+        try {
+            // 3) GPT 응답 JSON 파싱
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(gptResponseText);
+            JsonNode components = root.get("components");
 
-        // 4) DB 탐색 및 EstimateProduct 저장
-        List<Product> candidates = productRepository.findByNameContainingIgnoreCase(normalizedName);
+            int totalPriceSum = 0;
 
-        if (!candidates.isEmpty()) {
-            long totalPriceSum = 0L;
+            if (components != null && components.isArray()) {
+                for (JsonNode comp : components) {
+                    String type = comp.has("type") ? comp.get("type").asText() : null;
+                    String name = comp.has("name") ? comp.get("name").asText() : null;
+                    String priceStr = comp.has("price") ? comp.get("price").asText().replaceAll("[^0-9]", "") : "0";
+                    int unitPrice = priceStr.isEmpty() ? 0 : Integer.parseInt(priceStr);
 
-            for (Product product : candidates) {
-                int unitPrice = Math.toIntExact(PriceUtils.safeParsePrice(product.getLowestPrice()));
-                int quantity = 1;
-                int totalPrice = unitPrice * quantity;
+                    // DB에서 상품 조회 (이름 포함 검색)
+                    List<Product> candidates = productRepository.findByNameContainingIgnoreCase(name);
+                    Product matched = candidates.isEmpty() ? null : candidates.get(0);
 
-                EstimateProduct ep = EstimateProduct.builder()
-                        .aiEstimate(aiEstimate)
-                        .product(product)
-                        .aiName(normalizedName)
-                        .matched(true)
-                        .similarity(1.0f)
-                        .quantity(quantity)
-                        .unitPrice(unitPrice)
-                        .totalPrice(totalPrice)
-                        .createdAt(LocalDateTime.now())
-                        .build();
-                estimateProductRepository.save(ep);
+                    if (matched == null) {
+                        EstimateProduct ep = EstimateProduct.builder()
+                                .aiEstimate(aiEstimate)
+                                .product(matched)
+                                .aiName(name)
+                                .matched(matched != null)
+                                .similarity(1.0f)
+                                .quantity(1)
+                                .unitPrice(unitPrice)
+                                .totalPrice(unitPrice)
+                                .createdAt(LocalDateTime.now())
+                                .build();
 
-                totalPriceSum += totalPrice;
+                        estimateProductRepository.save(ep);
+                        totalPriceSum += unitPrice;
+                    } else {
+                        log.warn("AI 견적에 포함된 '{}' 상품은 DB에 존재하지 않아 저장하지 않습니다.", name);
+                    }
+                }
             }
 
-            // 총액 업데이트 (모든 후보 합산)
-            aiEstimate.setTotalPrice((int) totalPriceSum);
+            // 4) 총합 업데이트
+            aiEstimate.setTotalPrice(totalPriceSum);
+            aiEstimate.setUpdatedAt(LocalDateTime.now());
             aiEstimateRepository.save(aiEstimate);
+
+        } catch (Exception e) {
+            // 파싱 실패 시 로그만 찍고 넘어감
+            log.error("GPT 응답 파싱 실패", e);
         }
 
         return aiEstimate;
     }
 
-    private String normalizeProductName(String text) {
-        return text.replaceAll("[^a-zA-Z0-9가-힣 ]", "")
-                .trim()
-                .toLowerCase();
-    }
 
     /** 특정 채팅방의 견적 조회 */
-    public List<AiEstimate> getEstimates(String roomId, ChatRoom room) {
-        return aiEstimateRepository.findAllByChatRoom(room);
+    @Transactional(readOnly = true)
+    public List<AiEstimateResponse> getEstimatesByRoomId(UUID roomId) {
+        return aiEstimateRepository.findAllByChatRoomId(roomId.toString())
+                .stream()
+                .map(this::toResponse)
+                .toList();
     }
 
-    /** 엔티티 → DTO 변환 (Repository 이용) */
+    /** 단일 견적 조회 */
+    @Transactional(readOnly = true)
+    public AiEstimateResponse getEstimate(String estimateId) {
+        AiEstimate aiEstimate = aiEstimateRepository.findById(estimateId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 견적입니다."));
+        return toResponse(aiEstimate);
+    }
+
+    /** AI 견적 수정 */
+    @Transactional
+    public AiEstimateResponse updateEstimate(String estimateId, AiEstimateUpdateRequest request) {
+        AiEstimate aiEstimate = aiEstimateRepository.findById(estimateId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 견적입니다."));
+
+        if (request.getTitle() != null) {
+            aiEstimate.setTitle(request.getTitle());
+        }
+        if (request.getStatus() != null) {
+            aiEstimate.setStatus(request.getStatus());
+        }
+
+        aiEstimateRepository.save(aiEstimate);
+        return toResponse(aiEstimate);
+    }
+
+
+    /** AI 견적 삭제 */
+    @Transactional
+    public void deleteEstimate(String estimateId) {
+        if (!aiEstimateRepository.existsById(estimateId)) {
+            throw new IllegalArgumentException("존재하지 않는 견적입니다.");
+        }
+        estimateProductRepository.deleteAllByAiEstimateId(estimateId);
+        aiEstimateRepository.deleteById(estimateId);
+    }
+
+    /** 엔티티 → DTO 변환 */
     public AiEstimateResponse toResponse(AiEstimate aiEstimate) {
         if (aiEstimate == null) return null;
 
@@ -118,7 +175,7 @@ public class AiEstimateService {
                 .userId(aiEstimate.getUser() != null ? aiEstimate.getUser().getId() : null)
                 .title(aiEstimate.getTitle())
                 .totalPrice(aiEstimate.getTotalPrice())
-                .products(products) // Repository로 가져온 값 세팅
+                .products(products)
                 .build();
     }
 

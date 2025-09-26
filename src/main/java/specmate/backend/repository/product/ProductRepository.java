@@ -15,6 +15,8 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
 
     Page<Product> findByType(String type, Pageable pageable);
 
+    List<Product> findByNameContainingIgnoreCase(String name);
+
     @Query(value =
             "SELECT * FROM products " +
             "WHERE type = :type " +

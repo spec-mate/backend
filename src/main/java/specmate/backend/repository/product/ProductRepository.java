@@ -25,8 +25,8 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
 
     @Query(value =
             "SELECT * FROM products " +
-            "WHERE type = :type " +
-            "ORDER BY CAST(REPLACE(lowest_price->>'price', ',', '') AS INTEGER) DESC, id ASC",
+                    "WHERE type = :type " +
+                    "ORDER BY CAST(REPLACE(lowest_price->>'price', ',', '') AS INTEGER) DESC, id ASC",
             countQuery = "SELECT count(*) FROM products WHERE type = :type",
             nativeQuery = true)
     Page<Product> findByTypeOrderByLowestPriceDesc(@Param("type") String type, Pageable pageable);

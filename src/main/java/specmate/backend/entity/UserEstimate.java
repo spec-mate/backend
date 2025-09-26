@@ -1,3 +1,4 @@
+
 package specmate.backend.entity;
 
 import jakarta.persistence.*;

@@ -80,15 +80,15 @@ public class AuthService {
     }
 
     // 로그인
-    public LoginResponse login(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
+    public LoginResponse login(LoginRequest req) {
+        User user = userRepository.findByEmail(req.getEmail())
                 .orElseThrow(() -> new RuntimeException("존재하지 않는 이메일입니다."));
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (!passwordEncoder.matches(req.getPassword(), user.getPassword())) {
             throw new RuntimeException("비밀번호가 일치하지 않습니다.");
         }
 
-        String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+        String accessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail(), user.getRole());
         String refreshToken = jwtTokenProvider.createRefreshToken(user.getId());
 
         redisTemplate.opsForValue().set(
@@ -97,7 +97,8 @@ public class AuthService {
                 Duration.ofDays(7)
         );
 
-        return new LoginResponse(accessToken, refreshToken);
+        // 닉네임, 이메일도 함께 리턴
+        return new LoginResponse(accessToken, refreshToken, user.getNickname(), user.getEmail());
     }
 
     // 로그아웃
@@ -132,8 +133,8 @@ public class AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        String newAccessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail());
+        String newAccessToken = jwtTokenProvider.createAccessToken(user.getId(), user.getEmail(),  user.getRole());
 
-        return new LoginResponse(newAccessToken, refreshToken);
+        return new LoginResponse(newAccessToken, refreshToken, user.getNickname(), user.getEmail());
     }
 }

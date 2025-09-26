@@ -1,6 +1,8 @@
 package specmate.backend.dto.product;
 
 import lombok.*;
+
+import java.io.Serializable;
 import java.util.List;
 import java.util.Map;
 
@@ -9,7 +11,7 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ProductResponse {
+public class ProductResponse implements Serializable {
     private Integer id;
     private String name;
     private String image;

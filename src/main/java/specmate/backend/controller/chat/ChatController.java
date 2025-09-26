@@ -59,9 +59,7 @@ public class ChatController {
         return ResponseEntity.ok(chatService.getChatRoom(roomId));
     }
 
-    /**
-     * 채팅방 수정 (예: 제목 변경)
-     */
+    /** 채팅방 수정 */
     @Operation(summary = "채팅방 수정", description = "채팅방 제목을 수정합니다.",
             security = { @SecurityRequirement(name = "bearerAuth") })
     @PatchMapping("/rooms/{roomId}")

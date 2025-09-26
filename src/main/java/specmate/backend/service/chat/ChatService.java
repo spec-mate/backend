@@ -7,7 +7,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import specmate.backend.config.JwtTokenProvider;
 import specmate.backend.dto.aiestimate.EstimateResult;
-import specmate.backend.dto.chat.ChatMessageResponse;
 import specmate.backend.dto.chat.GPTResponse;
 import specmate.backend.dto.chatroom.ChatRoomRequest;
 import specmate.backend.dto.chatroom.ChatRoomResponse;
@@ -37,6 +36,7 @@ public class ChatService {
     private final ProductRepository productRepository;
     private final AiEstimateService aiEstimateService;
     private final OpenAIService openAIService;
+    private final EstimateResultProcessor estimateResultProcessor;
 
     /** REST API용 - userId 직접 받음 */
     @Transactional
@@ -126,14 +126,28 @@ public class ChatService {
     }
 
     /** 유저의 채팅방 목록 조회 */
+    /** 유저의 채팅방 목록 조회 */
     public List<ChatRoomResponse> getUserChatRooms(String userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
 
         return chatRoomRepository.findAllByUser(user).stream()
-                .map(ChatRoomResponse::fromEntity)
+                .map(room -> {
+                    ChatRoomResponse response = ChatRoomResponse.fromEntity(room);
+                    if (room.getLastMessage() != null) {
+                        try {
+                            EstimateResult parsed = estimateResultProcessor.parse(room.getLastMessage());
+                            response.setTitle(parsed.getBuildName());
+                            response.setLastMessage(parsed.getBuildDescription());
+                        } catch (Exception e) {
+                            response.setLastMessage(room.getLastMessage());
+                        }
+                    }
+                    return response;
+                })
                 .toList();
     }
+
 
 //    public List<ChatMessageResponse> getChatMessages(String roomId) {
 //        ChatRoom room = chatRoomRepository.findById(roomId)
@@ -157,19 +171,36 @@ public class ChatService {
         chatRoomRepository.delete(room);
     }
 
-    /** thread 기반 채팅방 조회 */
-    public ChatRoom getChatRoomByThread(String threadId) {
-        return chatRoomRepository.findByThread(threadId)
-                .orElseThrow(() -> new IllegalArgumentException("Thread ID에 해당하는 채팅방이 없습니다."));
-    }
+//    public ChatRoom getChatRoomByThread(String threadId) {
+//        return chatRoomRepository.findByThread(threadId)
+//                .orElseThrow(() -> new IllegalArgumentException("Thread ID에 해당하는 채팅방이 없습니다."));
+//    }
 
     /** 채팅방 단일 조회 */
     @Transactional
     public ChatRoomResponse getChatRoom(String roomId) {
         ChatRoom room = chatRoomRepository.findById(roomId)
                 .orElseThrow(() -> new IllegalArgumentException("채팅방이 존재하지 않습니다."));
-        return ChatRoomResponse.fromEntity(room);
+
+        ChatRoomResponse response = ChatRoomResponse.fromEntity(room);
+
+        if (room.getLastMessage() != null) {
+            try {
+                EstimateResult parsed = estimateResultProcessor.parse(room.getLastMessage());
+                if (parsed.getBuildName() != null) {
+                    response.setTitle(parsed.getBuildName());
+                }
+                if (parsed.getBuildDescription() != null) {
+                    response.setLastMessage(parsed.getBuildDescription());
+                }
+            } catch (Exception e) {
+                response.setLastMessage(room.getLastMessage());
+            }
+        }
+
+        return response;
     }
+
 
     /** 채팅방 수정 */
     @Transactional

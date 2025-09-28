@@ -26,7 +26,7 @@ public class OpenAIService {
     private String apiKey;
 
     @Value("${OPENAI_ASSISTANT_ID}")
-    private String assistantId; // ✅ .env 또는 application.properties 에서 주입받음
+    private String assistantId;
 
     private final OkHttpClient client = new OkHttpClient.Builder()
             .connectTimeout(30, TimeUnit.SECONDS)

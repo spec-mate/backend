@@ -18,9 +18,14 @@ public class EstimateResultProcessor {
                     .replaceAll("(?s)```", "")
                     .trim();
 
+            cleaned = cleaned.replaceAll("(?<=\\d)_(?=\\d)", "");
+
+            cleaned = cleaned.replaceAll("([0-9]),([0-9])", "$1$2")
+                    .replaceAll("([0-9])원", "$1");
+
             return objectMapper.readValue(cleaned, EstimateResult.class);
         } catch (Exception e) {
-            throw new IllegalArgumentException("GPT 응답 전처리에 실패했습니다." + gptMessage, e);
+            throw new IllegalArgumentException("GPT 응답 전처리에 실패했습니다. (파싱 오류 확인 필요)", e);
         }
     }
 }

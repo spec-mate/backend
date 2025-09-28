@@ -42,6 +42,14 @@ public class ChatController {
         return ResponseEntity.ok(result);
     }
 
+    /** 채팅방 메시지 조회 */
+    @Operation(summary = "채팅 메시지 조회", description = "특정 채팅방의 메시지 내역을 조회합니다.",
+            security = { @SecurityRequirement(name = "bearerAuth") })
+    @GetMapping("/rooms/{roomId}/messages")
+    public ResponseEntity<List<ChatMessageResponse>> getMessages(@PathVariable String roomId) {
+        return ResponseEntity.ok(chatService.getChatMessages(roomId));
+    }
+
     /** 채팅방 목록 조회 */
     @Operation(summary = "채팅방 목록 조회", description = "유저가 참여한 채팅방 목록을 조회합니다.",
             security = { @SecurityRequirement(name = "bearerAuth") })

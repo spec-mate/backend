@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import specmate.backend.config.JwtTokenProvider;
 import specmate.backend.dto.aiestimate.EstimateResult;
+import specmate.backend.dto.chat.ChatMessageResponse;
 import specmate.backend.dto.chat.GPTResponse;
 import specmate.backend.dto.chatroom.ChatRoomRequest;
 import specmate.backend.dto.chatroom.ChatRoomResponse;
@@ -23,6 +24,7 @@ import specmate.backend.service.estimate.ai.AiEstimateService;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -37,6 +39,7 @@ public class ChatService {
     private final AiEstimateService aiEstimateService;
     private final OpenAIService openAIService;
     private final EstimateResultProcessor estimateResultProcessor;
+    private final ObjectMapper objectMapper;
 
     /** REST API용 - userId 직접 받음 */
     @Transactional
@@ -105,6 +108,7 @@ public class ChatService {
                 .chatRoom(room)
                 .sender(SenderType.USER)
                 .content(content)
+                .parsedJson(null)
                 .status(MessageStatus.SUCCESS)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
@@ -114,18 +118,25 @@ public class ChatService {
 
     /** 어시스턴트 메시지 저장 */
     public ChatMessage saveAssistantMessage(ChatRoom room, String content) {
+        Map<String, Object> parsed = null;
+        try {
+            EstimateResult estimateResult = estimateResultProcessor.parse(content);
+            parsed = objectMapper.convertValue(estimateResult, Map.class);
+        } catch (Exception e) {
+            log.warn("GPT 응답 파싱 실패 → parsedJson=null", e);
+        }
+
         ChatMessage assistantMessage = ChatMessage.builder()
                 .chatRoom(room)
                 .sender(SenderType.ASSISTANT)
-                .content(content)
+                .content(content) // 원본
+                .parsedJson(parsed) // 파싱된 JSON
                 .status(MessageStatus.SUCCESS)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
-        return chatMessageRepository.save(assistantMessage);
-    }
+        return chatMessageRepository.save(assistantMessage);    }
 
-    /** 유저의 채팅방 목록 조회 */
     /** 유저의 채팅방 목록 조회 */
     public List<ChatRoomResponse> getUserChatRooms(String userId) {
         User user = userRepository.findById(userId)
@@ -149,19 +160,21 @@ public class ChatService {
     }
 
 
-//    public List<ChatMessageResponse> getChatMessages(String roomId) {
-//        ChatRoom room = chatRoomRepository.findById(roomId)
-//                .orElseThrow(() -> new IllegalArgumentException("채팅방이 존재하지 않습니다."));
-//
-//        return chatMessageRepository.findAllByChatRoom(room).stream()
-//                .map(msg -> ChatMessageResponse.builder()
-//                        .sender(msg.getSender().name()) // enum → String
-//                        .content(msg.getContent())
-//                        .roomId(room.getId())
-//                        .createdAt(msg.getCreatedAt())
-//                        .build())
-//                .toList();
-//    }
+    /** 메세지 조회 */
+    public List<ChatMessageResponse> getChatMessages(String roomId) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방이 존재하지 않습니다."));
+
+        return chatMessageRepository.findAllByChatRoom(room).stream()
+                .map(msg -> ChatMessageResponse.builder()
+                        .sender(msg.getSender().name()) // enum → String
+                        .content(msg.getContent())
+                        .parsedJson(msg.getParsedJson())
+                        .roomId(room.getId())
+                        .createdAt(msg.getCreatedAt())
+                        .build())
+                .toList();
+    }
 
     /** 채팅방 삭제 */
     @Transactional

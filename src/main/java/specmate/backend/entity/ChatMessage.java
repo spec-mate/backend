@@ -33,7 +33,7 @@ public class ChatMessage {
     @Column(nullable = false)
     private SenderType sender;
 
-    @Lob
+    @Column(columnDefinition = "text", nullable = false)
     private String content;
 
     /** AI가 구조화한 JSON 데이터 */

@@ -1,5 +1,6 @@
 package specmate.backend.config;
 
+import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.server.ServerHttpRequest;
@@ -40,6 +41,7 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
                 return false;
             }
 
+            try {
             // 유저 정보 추출 (userId, role, email 등 필요시 확장)
             String userId = jwtTokenProvider.getUserId(token);
             String role = jwtTokenProvider.getRole(token);
@@ -51,8 +53,13 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
             attributes.put("role", role);
             attributes.put("email", email);
 
-            System.out.println("Handshake 성공 → userId=" + userId + ", role=" + role + ", email=" + email);
+            System.out.println("WebSocket Handshake 성공 → userId=" + userId + ", role=" + role + ", email=" + email);
             return true;
+
+            } catch (Exception e) {
+            System.out.println("WebSocket Handshake 중 예외 발생: " + e.getMessage());
+            return false;
+            }
         }
         return false;
     }

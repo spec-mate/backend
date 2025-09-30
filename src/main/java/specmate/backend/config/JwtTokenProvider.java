@@ -2,6 +2,7 @@ package specmate.backend.config;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import specmate.backend.entity.enums.Role;
 
@@ -11,9 +12,14 @@ import java.util.Date;
 @Component
 public class JwtTokenProvider {
 
-    private final Key key = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+//    private final Key key = Keys.secretKeyFor(SignatureAlgorithm.HS256);
+    private final Key key;
     private final long accessTokenValidity = 1000L * 60 * 30;
     private final long refreshTokenValidity = 1000L * 60 * 60 * 24 * 7;
+
+    public JwtTokenProvider(@Value("${JWT_SECRET}") String secret) {
+        this.key = Keys.hmacShaKeyFor(secret.getBytes());
+    }
 
     // Access Token 생성
     public String createAccessToken(String userId, String email, Role role) {
@@ -35,29 +41,51 @@ public class JwtTokenProvider {
                 .compact();
     }
 
-    // 토큰내 유저 ID 추출
-    public String getUserId(String token) {
-        return Jwts.parserBuilder().setSigningKey(key).build()
-                .parseClaimsJws(token).getBody().getSubject();
-    }
+//    // 토큰내 유저 ID 추출
+//    public String getUserId(String token) {
+//        return Jwts.parserBuilder().setSigningKey(key).build()
+//                .parseClaimsJws(token).getBody().getSubject();
+//    }
+//
+//    public String getRole(String token) {
+//        return Jwts.parserBuilder()
+//                .setSigningKey(key)
+//                .build()
+//                .parseClaimsJws(token)
+//                .getBody()
+//                .get("role", String.class);
+//    }
+//
+//    // 토큰 내 Email 추출
+//    public String getEmail(String token) {
+//        return Jwts.parserBuilder()
+//                .setSigningKey(key)
+//                .build()
+//                .parseClaimsJws(token)
+//                .getBody()
+//                .get("email", String.class);
+//    }
 
-    public String getRole(String token) {
+    /** Claims 공통 추출 */
+    private Claims parseClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(key)
                 .build()
                 .parseClaimsJws(token)
-                .getBody()
-                .get("role", String.class);
+                .getBody();
+    }
+
+    // 토큰내 유저 ID 추출
+    public String getUserId(String token) {
+        return parseClaims(token).getSubject();
+    }
+    public String getRole(String token) {
+        return parseClaims(token).get("role", String.class);
     }
 
     // 토큰 내 Email 추출
     public String getEmail(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(key)
-                .build()
-                .parseClaimsJws(token)
-                .getBody()
-                .get("email", String.class);
+        return parseClaims(token).get("email", String.class);
     }
 
     // 토큰 유효성 검사

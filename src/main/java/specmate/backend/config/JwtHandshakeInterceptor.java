@@ -17,7 +17,8 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 
     private final JwtTokenProvider jwtTokenProvider;
 
-    /** WebSocket 핸드셰이크(연결 수립) 직전에 실행되는 메서드 */
+    /** WebSocket 핸드셰이크 직전 실행 */
+    @Override
     public boolean beforeHandshake(ServerHttpRequest request,
                                    ServerHttpResponse response,
                                    WebSocketHandler wsHandler,
@@ -26,27 +27,37 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
             HttpServletRequest httpRequest = servletRequest.getServletRequest();
             String token = httpRequest.getParameter("token");
 
-            // 토큰 검증
-            if (token != null && jwtTokenProvider.validateToken(token)) {
-                String userId = jwtTokenProvider.getUserId(token);
-                String role = jwtTokenProvider.getRole(token);
+            System.out.println("WebSocket Handshake token: " + token);
 
-                // WebSocket 세션에 필요한 정보 저장
-                attributes.put("token", token);
-                attributes.put("userId", userId);
-                attributes.put("role", role);
-
-                System.out.println("WebSocket 토큰 검증 성공: userId=" + userId + ", role=" + role);
-                return true;
-            } else {
-                System.out.println("WebSocket 토큰 검증 실패");
+            if (token == null || token.isBlank()) {
+                System.out.println("토큰 없음 → handshake 실패");
                 return false;
             }
+
+            // JWT 유효성 검증
+            if (!jwtTokenProvider.validateToken(token)) {
+                System.out.println("토큰 유효성 검사 실패 → handshake 실패");
+                return false;
+            }
+
+            // 유저 정보 추출 (userId, role, email 등 필요시 확장)
+            String userId = jwtTokenProvider.getUserId(token);
+            String role = jwtTokenProvider.getRole(token);
+            String email = jwtTokenProvider.getEmail(token);
+
+            // WebSocket 세션에 저장
+            attributes.put("token", token);
+            attributes.put("userId", userId);
+            attributes.put("role", role);
+            attributes.put("email", email);
+
+            System.out.println("Handshake 성공 → userId=" + userId + ", role=" + role + ", email=" + email);
+            return true;
         }
         return false;
     }
 
-    /** WebSocket 핸드셰이크가 끝난 후 실행되는 메서드 */
+    /** WebSocket 핸드셰이크 후 실행 */
     @Override
     public void afterHandshake(ServerHttpRequest request,
                                ServerHttpResponse response,

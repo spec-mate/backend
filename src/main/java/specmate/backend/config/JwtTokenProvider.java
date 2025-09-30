@@ -50,6 +50,16 @@ public class JwtTokenProvider {
                 .get("role", String.class);
     }
 
+    // 토큰 내 Email 추출
+    public String getEmail(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get("email", String.class);
+    }
+
     // 토큰 유효성 검사
     public boolean validateToken(String token) {
         try {

@@ -17,51 +17,25 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
 
     List<Product> findByNameContainingIgnoreCase(String name);
 
-    @Query(value =
-            "SELECT * FROM products " +
-            "WHERE type = :type " +
-            "ORDER BY CAST(REPLACE(lowest_price->>'price', ',', '') AS INTEGER) ASC, id ASC",
-            countQuery = "SELECT count(*) FROM products WHERE type = :type",
+    @Query(value = """
+        SELECT * 
+        FROM products 
+        WHERE type = :type
+          AND (:manufacturer IS NULL OR :manufacturer = '' OR manufacturer = :manufacturer)
+          AND (:keyword IS NULL OR :keyword = '' OR LOWER(name) LIKE LOWER(CONCAT('%', :keyword, '%')))
+        ORDER BY 
+          CASE WHEN :sort = 'priceAsc' THEN CAST(REPLACE(lowest_price->>'price', ',', '') AS INTEGER) END ASC,
+          CASE WHEN :sort = 'priceDesc' THEN CAST(REPLACE(lowest_price->>'price', ',', '') AS INTEGER) END DESC,
+          CASE WHEN :sort = 'popRank' THEN pop_rank END ASC,
+          id ASC
+        """,
+            countQuery = """
+        SELECT count(*) 
+        FROM products 
+        WHERE type = :type
+          AND (:manufacturer IS NULL OR :manufacturer = '' OR manufacturer = :manufacturer)
+          AND (:keyword IS NULL OR :keyword = '' OR LOWER(name) LIKE LOWER(CONCAT('%', :keyword, '%')))
+        """,
             nativeQuery = true)
-    Page<Product> findByTypeOrderByLowestPriceAsc(@Param("type") String type, Pageable pageable);
-
-    @Query(value =
-            "SELECT * FROM products " +
-                    "WHERE type = :type " +
-                    "ORDER BY CAST(REPLACE(lowest_price->>'price', ',', '') AS INTEGER) DESC, id ASC",
-            countQuery = "SELECT count(*) FROM products WHERE type = :type",
-            nativeQuery = true)
-    Page<Product> findByTypeOrderByLowestPriceDesc(@Param("type") String type, Pageable pageable);
-
-    @Query(value =
-            "SELECT * FROM products " +
-            "WHERE type = :type AND manufacturer = :manufacturer " +
-            "ORDER BY CAST(REPLACE(lowest_price->>'price', ',', '') AS INTEGER) ASC, id ASC",
-            countQuery = "SELECT count(*) FROM products WHERE type = :type AND manufacturer = :manufacturer",
-            nativeQuery = true)
-    Page<Product> findByTypeAndManufacturerOrderByLowestPriceAsc(@Param("type") String type, @Param("manufacturer") String manufacturer, Pageable pageable);
-
-    @Query(value =
-            "SELECT * FROM products " +
-            "WHERE type = :type AND manufacturer = :manufacturer " +
-            "ORDER BY CAST(REPLACE(lowest_price->>'price', ',', '') AS INTEGER) DESC, id ASC",
-            countQuery = "SELECT count(*) FROM products WHERE type = :type AND manufacturer = :manufacturer",
-            nativeQuery = true)
-    Page<Product> findByTypeAndManufacturerOrderByLowestPriceDesc(@Param("type") String type, @Param("manufacturer") String manufacturer, Pageable pageable);
-
-    @Query(value =
-            "SELECT * FROM products " +
-            "WHERE type = :type AND manufacturer = :manufacturer " +
-            "ORDER BY pop_rank NULLS LAST, id ASC",
-            countQuery = "SELECT count(*) FROM products WHERE type = :type AND manufacturer = :manufacturer",
-            nativeQuery = true)
-    Page<Product> findByTypeAndManufacturerOrderByPopRankAsc(@Param("type") String type, @Param("manufacturer") String manufacturer, Pageable pageable);
-
-    @Query(value =
-            "SELECT * FROM products " +
-            "WHERE type = :type " +
-            "ORDER BY pop_rank NULLS LAST, id ASC",
-            countQuery = "SELECT count(*) FROM products WHERE type = :type",
-            nativeQuery = true)
-    Page<Product> findByTypeOrderByPopRankAsc(@Param("type") String type, Pageable pageable);
+    Page<Product> searchProducts(@Param("type") String type, @Param("manufacturer") String manufacturer, @Param("keyword") String keyword, @Param("sort") String sort, Pageable pageable);
 }

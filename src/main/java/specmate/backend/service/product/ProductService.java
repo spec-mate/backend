@@ -51,9 +51,10 @@ public class ProductService {
                 .build();
     }
 
-    public Page<ProductResponse> getProductsByType(String type, String manufacturer, String sort, Pageable pageable) {
+    public Page<ProductResponse> getProductsByType(String type, String manufacturer, String sort, String keyword, Pageable pageable) {
         String cacheKey = "productsByType:" + type + ":" +
                 (manufacturer != null ? manufacturer : "") + ":" +
+                (keyword != null ? keyword : "") + ":" +
                 sort + ":" + pageable.getPageNumber() + ":" + pageable.getPageSize();
 
         ValueOperations<String, Object> ops = redisTemplate.opsForValue();
@@ -64,27 +65,7 @@ public class ProductService {
             return (Page<ProductResponse>) cached;
         }
 
-        Page<Product> products;
-        boolean hasManufacturer = (manufacturer != null && !manufacturer.isEmpty());
-
-        if (hasManufacturer) {
-            if ("priceAsc".equalsIgnoreCase(sort)) {
-                products = productRepository.findByTypeAndManufacturerOrderByLowestPriceAsc(type, manufacturer, pageable);
-            } else if ("priceDesc".equalsIgnoreCase(sort)) {
-                products = productRepository.findByTypeAndManufacturerOrderByLowestPriceDesc(type, manufacturer, pageable);
-            } else {
-                products = productRepository.findByTypeAndManufacturerOrderByPopRankAsc(type, manufacturer, pageable);
-            }
-        } else {
-            if ("priceAsc".equalsIgnoreCase(sort)) {
-                products = productRepository.findByTypeOrderByLowestPriceAsc(type, pageable);
-            } else if ("priceDesc".equalsIgnoreCase(sort)) {
-                products = productRepository.findByTypeOrderByLowestPriceDesc(type, pageable);
-            } else {
-                products = productRepository.findByTypeOrderByPopRankAsc(type, pageable);
-            }
-        }
-
+        Page<Product> products = productRepository.searchProducts(type, manufacturer, keyword, sort, pageable);
         Page<ProductResponse> response = products.map(this::toResponse);
 
         ops.set(cacheKey, response, 10, TimeUnit.MINUTES);

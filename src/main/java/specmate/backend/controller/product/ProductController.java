@@ -32,13 +32,12 @@ public class ProductController {
         return ResponseEntity.ok(productService.getAllProducts());
     }
 
-    @Operation(summary = "상품 Type별 조회", description = "특정 type의 상품을 조회합니다. " + "옵션: manufacturer(제조사), sort(priceAsc, priceDesc, popRank)")
+    @Operation(summary = "상품 Type별 조회", description = "특정 type의 상품을 조회합니다. " + "옵션: manufacturer(제조사), sort(priceAsc, priceDesc, popRank), keyword(상품명 검색)")
     @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ProductResponse.class)))
     @GetMapping("/type/{type}")
-    public ResponseEntity<Page<ProductResponse>> getProductsByType(@PathVariable String type, @RequestParam(required = false) String manufacturer,
-            @RequestParam(required = false, defaultValue = "popRank") String sort, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+    public ResponseEntity<Page<ProductResponse>> getProductsByType(@PathVariable String type, @RequestParam(required = false) String manufacturer, @RequestParam(required = false, defaultValue = "popRank") String sort, @RequestParam(required = false) String keyword, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(productService.getProductsByType(type, manufacturer, sort, pageable));
+        return ResponseEntity.ok(productService.getProductsByType(type, manufacturer, sort, keyword, pageable));
     }
 
     @Operation(summary = "상품 단건 조회", description = "상품 ID를 이용해 특정 상품 정보를 조회합니다.")

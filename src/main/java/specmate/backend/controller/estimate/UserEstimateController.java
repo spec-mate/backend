@@ -54,6 +54,19 @@ public class UserEstimateController {
         return ResponseEntity.ok(userEstimateService.getEstimateProducts(estimateId));
     }
 
+    @Operation(summary = "견적 내 특정 제품 교체", description = "특정 견적에 포함된 특정 제품을 새로운 제품으로 교체합니다. 기존 제품의 금액은 총액에서 차감되고, 새로운 제품 금액이 반영됩니다.", security = { @SecurityRequirement(name = "bearerAuth") },
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "제품 교체 성공", content = @Content(schema = @Schema(implementation = UserEstimateProductResponse.class))),
+                    @ApiResponse(responseCode = "404", description = "견적 또는 제품을 찾을 수 없음"),
+                    @ApiResponse(responseCode = "403", description = "권한 없음")
+            }
+    )
+    @PutMapping("/{estimateId}/products/{estimateProductId}")
+    public ResponseEntity<UserEstimateProductResponse> replaceProductInEstimate(@PathVariable String estimateProductId, @RequestBody UserEstimateProductRequest req, Authentication authentication) {
+        String userId = (String) authentication.getPrincipal();
+        return ResponseEntity.ok(userEstimateService.replaceProductInEstimate(estimateProductId, req, userId));
+    }
+
     @Operation(summary = "견적에서 제품 제거", description = "특정 견적에 담긴 개별 제품을 제거합니다. 견적 총 가격도 함께 갱신됩니다.", security = { @SecurityRequirement(name = "bearerAuth") })
     @DeleteMapping("/products/{estimateProductId}")
     public ResponseEntity<Void> removeProductFromEstimate(@PathVariable String estimateProductId, Authentication authentication) {

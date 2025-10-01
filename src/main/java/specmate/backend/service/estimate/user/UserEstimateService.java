@@ -116,6 +116,46 @@ public class UserEstimateService {
                 .collect(Collectors.toList());
     }
 
+    /** 특정 견적에서 제품 교체 */
+    @Transactional
+    public UserEstimateProductResponse replaceProductInEstimate(String estimateProductId, UserEstimateProductRequest req, String userId) {
+        UserEstimateProduct estimateProduct = userEstimateProductRepository.findById(estimateProductId)
+                .orElseThrow(() -> new RuntimeException("견적에 포함된 부품이 없습니다."));
+
+        UserEstimate estimate = estimateProduct.getUserEstimate();
+
+        if (!estimate.getUser().getId().equals(userId)) {
+            throw new RuntimeException("권한이 없습니다.");
+        }
+
+        int oldTotalPrice = estimateProduct.getTotalPrice();
+        int currentEstimateTotal = (estimate.getTotalPrice() == null ? 0 : estimate.getTotalPrice());
+        estimate.setTotalPrice(Math.max(currentEstimateTotal - oldTotalPrice, 0));
+
+        Product newProduct = productRepository.findById(Integer.valueOf(req.getProductId()))
+                .orElseThrow(() -> new RuntimeException("부품을 찾을 수 없습니다."));
+
+        int unitPrice;
+        try {
+            unitPrice = Integer.parseInt(newProduct.getLowestPrice().get("price").toString().replace(",", ""));
+        } catch (NumberFormatException e) {
+            throw new RuntimeException("Invalid product price format");
+        }
+
+        int newTotalPrice = unitPrice * req.getQuantity();
+
+        estimateProduct.setProduct(newProduct);
+        estimateProduct.setCategory(req.getCategory());
+        estimateProduct.setQuantity(req.getQuantity());
+        estimateProduct.setUnitPrice(unitPrice);
+        estimateProduct.setTotalPrice(newTotalPrice);
+        estimateProduct.setUpdatedAt(LocalDateTime.now());
+
+        estimate.setTotalPrice((estimate.getTotalPrice() == null ? 0 : estimate.getTotalPrice()) + newTotalPrice);
+
+        return toEstimateProductResponse(estimateProduct);
+    }
+
     /** 유저의 모든 견적 조회 */
     public List<UserEstimateResponse> getUserEstimates(String userId) {
         return userEstimateRepository.findByUserId(userId)

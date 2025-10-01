@@ -24,9 +24,12 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
           AND (:manufacturer IS NULL OR :manufacturer = '' OR manufacturer = :manufacturer)
           AND (:keyword IS NULL OR :keyword = '' OR LOWER(name) LIKE LOWER(CONCAT('%', :keyword, '%')))
         ORDER BY 
-          CASE WHEN :sort = 'priceAsc' THEN CAST(REPLACE(lowest_price->>'price', ',', '') AS INTEGER) END ASC,
-          CASE WHEN :sort = 'priceDesc' THEN CAST(REPLACE(lowest_price->>'price', ',', '') AS INTEGER) END DESC,
-          CASE WHEN :sort = 'popRank' THEN pop_rank END ASC,
+          CASE WHEN :sort = 'priceAsc' 
+               THEN CAST(NULLIF(REGEXP_REPLACE(lowest_price->>'price', '[^0-9]', '', 'g'), '') AS INTEGER) END ASC,
+          CASE WHEN :sort = 'priceDesc' 
+               THEN CAST(NULLIF(REGEXP_REPLACE(lowest_price->>'price', '[^0-9]', '', 'g'), '') AS INTEGER) END DESC,
+          CASE WHEN :sort = 'popRank' 
+               THEN pop_rank END ASC,
           id ASC
         """,
             countQuery = """

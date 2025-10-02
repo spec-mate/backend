@@ -8,5 +8,7 @@ import java.util.Optional;
 
 @Repository
 public interface AssistantRepository extends JpaRepository<Assistant, String> {
-    Optional<Assistant> findByName(String name);
+    Optional<Assistant> findByIsActiveTrue();
 }
+
+

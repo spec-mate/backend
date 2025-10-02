@@ -1,230 +1,298 @@
 package specmate.backend.service.chat;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import specmate.backend.config.JwtTokenProvider;
 import specmate.backend.dto.aiestimate.EstimateResult;
 import specmate.backend.dto.chat.ChatMessageResponse;
-import specmate.backend.dto.chat.GPTResponse;
 import specmate.backend.dto.chatroom.ChatRoomRequest;
 import specmate.backend.dto.chatroom.ChatRoomResponse;
 import specmate.backend.entity.*;
 import specmate.backend.entity.enums.MessageStatus;
 import specmate.backend.entity.enums.SenderType;
 import specmate.backend.processor.EstimateResultProcessor;
-import specmate.backend.repository.chat.ChatMessageRepository;
-import specmate.backend.repository.chat.ChatRoomRepository;
+import specmate.backend.repository.chat.*;
 import specmate.backend.repository.product.ProductRepository;
 import specmate.backend.repository.user.UserRepository;
-import specmate.backend.service.estimate.ai.AiEstimateService;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
-@Slf4j
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ChatService {
 
     private final UserRepository userRepository;
-    private final JwtTokenProvider jwtTokenProvider;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final AiEstimateRepository aiEstimateRepository;
+    private final EstimateProductRepository estimateProductRepository;
     private final ProductRepository productRepository;
-    private final AiEstimateService aiEstimateService;
-    private final OpenAIService openAIService;
     private final EstimateResultProcessor estimateResultProcessor;
-    private final ObjectMapper objectMapper;
 
-    /** REST API용 - userId 직접 받음 */
+    private final ObjectMapper objectMapper = new ObjectMapper();
+    private final OkHttpClient client = new OkHttpClient();
+
+    private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+
+    @Value("${openai.api-key}")
+    private String apiKey;
+
+    @Value("${openai.assistant-id}")
+    private String assistantId;
+
+    /** 사용자 메시지 처리 */
     @Transactional
-    public GPTResponse processUserPrompt(String userId, String prompt) throws IOException {
-        // 1) 유저 조회
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+    public ChatMessage processUserMessage(String roomId, String content) throws IOException {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방 없음"));
 
-        // 2) 채팅방 가져오기
-        ChatRoom room = chatRoomRepository.findFirstByUserOrderByCreatedAtDesc(user)
-                .orElseGet(() -> chatRoomRepository.save(
-                        ChatRoom.builder()
-                                .user(user)
-                                .title("새 채팅방")
-                                .createdAt(LocalDateTime.now())
-                                .build()
-                ));
-
-        // thread 생성
-        if (room.getThread() == null) {
-            String newThread = openAIService.createThread();
-            room.setThread(newThread);
-            chatRoomRepository.save(room);
-        }
-
-        // 유저 메시지 저장
-        saveUserMessage(room, prompt);
-
-        // GPT 호출
-        GPTResponse gptResponse = openAIService.callGptApi(prompt, productRepository.findAll(), room.getThread());
-
-        EstimateResult estimateResult = null;
-        try {
-            estimateResult = new EstimateResultProcessor(new ObjectMapper()).parse(gptResponse.getMessage());
-        } catch (Exception e) {
-            log.warn("GPT 응답 파싱 실패, 기본 제목 사용", e);
-        }
-
-        // 어시스턴트 메시지 저장
-        ChatMessage assistantMessage = saveAssistantMessage(room, gptResponse.getMessage());
-        aiEstimateService.createEstimate(room, assistantMessage, gptResponse.getMessage());
-
-        // 채팅방 최신화
-        if (estimateResult != null && estimateResult.getBuildName() != null) {
-            room.setTitle(estimateResult.getBuildName());
-        } else {
-            room.setTitle("AI 응답"); // fallback
-        }
-        room.setLastMessage(assistantMessage.getContent());
-        room.setUpdatedAt(LocalDateTime.now());
-        chatRoomRepository.save(room);
-
-        return gptResponse;
-    }
-
-
-    /** WebSocket용 - token 받아서 userId 추출 */
-    public GPTResponse processUserPromptWithToken(String token, String prompt) throws IOException {
-        String userId = jwtTokenProvider.getUserId(token);
-        return processUserPrompt(userId, prompt);
-    }
-
-    /** 유저 메시지 저장 */
-    public ChatMessage saveUserMessage(ChatRoom room, String content) {
-        ChatMessage userMessage = ChatMessage.builder()
+        ChatMessage userMsg = ChatMessage.builder()
                 .chatRoom(room)
                 .sender(SenderType.USER)
                 .content(content)
-                .parsedJson(null)
                 .status(MessageStatus.SUCCESS)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
-        return chatMessageRepository.save(userMessage);
-    }
+        chatMessageRepository.save(userMsg);
 
-    /** 어시스턴트 메시지 저장 */
-    public ChatMessage saveAssistantMessage(ChatRoom room, String content) {
-        Map<String, Object> parsed = null;
-        try {
-            EstimateResult estimateResult = estimateResultProcessor.parse(content);
-            parsed = objectMapper.convertValue(estimateResult, Map.class);
-        } catch (Exception e) {
-            log.warn("GPT 응답 파싱 실패 → parsedJson=null", e);
-        }
+        // OpenAI Thread에 메시지 추가
+        addMessageToThread(room.getThread(), content);
 
-        ChatMessage assistantMessage = ChatMessage.builder()
+        // Run 생성 및 완료 대기
+        String runId = createRun(room.getThread());
+        String assistantReply = waitForRunCompletion(room.getThread(), runId);
+
+        // AI 응답 메시지 저장
+        ChatMessage assistantMsg = ChatMessage.builder()
                 .chatRoom(room)
                 .sender(SenderType.ASSISTANT)
-                .content(content) // 원본
-                .parsedJson(parsed) // 파싱된 JSON
+                .content(assistantReply)
                 .status(MessageStatus.SUCCESS)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
-        return chatMessageRepository.save(assistantMessage);    }
+        chatMessageRepository.save(assistantMsg);
 
-    /** 유저의 채팅방 목록 조회 */
-    public List<ChatRoomResponse> getUserChatRooms(String userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저입니다."));
+        // 응답 JSON 파싱
+        EstimateResult result = estimateResultProcessor.parse(assistantReply);
 
-        return chatRoomRepository.findAllByUser(user).stream()
-                .map(room -> {
-                    ChatRoomResponse response = ChatRoomResponse.fromEntity(room);
-                    if (room.getLastMessage() != null) {
-                        try {
-                            EstimateResult parsed = estimateResultProcessor.parse(room.getLastMessage());
-                            response.setTitle(parsed.getBuildName());
-                            response.setLastMessage(parsed.getBuildDescription());
-                        } catch (Exception e) {
-                            response.setLastMessage(room.getLastMessage());
-                        }
-                    }
-                    return response;
-                })
-                .toList();
-    }
+        // AI 견적 저장
+        AiEstimate estimate = AiEstimate.builder()
+                .chatRoom(room)
+                .user(room.getUser())
+                .message(assistantMsg)
+                .title(result.getBuildName())
+                .totalPrice(parsePrice(result.getTotalPrice()))
+                .status("SUCCESS")
+                .build();
 
+        LocalDateTime now = LocalDateTime.now();
+        estimate.setCreatedAt(now);
+        estimate.setUpdatedAt(now);
 
-    /** 메세지 조회 */
-    public List<ChatMessageResponse> getChatMessages(String roomId) {
-        ChatRoom room = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new IllegalArgumentException("채팅방이 존재하지 않습니다."));
+        aiEstimateRepository.save(estimate);
 
-        return chatMessageRepository.findAllByChatRoom(room).stream()
-                .map(msg -> ChatMessageResponse.builder()
-                        .sender(msg.getSender().name()) // enum → String
-                        .content(msg.getContent())
-                        .parsedJson(msg.getParsedJson())
-                        .roomId(room.getId())
-                        .createdAt(msg.getCreatedAt())
-                        .build())
-                .toList();
-    }
+        // 부품 저장    
+        if (result.getProducts() != null && !result.getProducts().isEmpty()) {
+            result.getProducts().forEach(p -> {
+                Product matchedProduct = productRepository
+                        .findByNameContainingIgnoreCase(p.getName())
+                        .stream()
+                        .filter(prod -> prod.getType().equalsIgnoreCase(p.getType()))
+                        .findFirst()
+                        .orElse(null);
 
-    /** 채팅방 삭제 */
-    @Transactional
-    public void deleteChatRoom(String roomId) {
-        ChatRoom room = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new IllegalArgumentException("채팅방이 존재하지 않습니다."));
-        chatRoomRepository.delete(room);
-    }
+                if (matchedProduct != null) {
+                    EstimateProduct ep = EstimateProduct.builder()
+                            .aiEstimate(estimate)
+                            .product(matchedProduct)
+                            .aiName(p.getName())
+                            .matched(true)
+                            .similarity(p.getSimilarity() != null ? p.getSimilarity().floatValue() : 0.0f)
+                            .quantity(1)
+                            .unitPrice(parsePrice(p.getPrice()))
+                            .totalPrice(parsePrice(p.getPrice()))
+                            .createdAt(LocalDateTime.now())
+                            .build();
 
-//    public ChatRoom getChatRoomByThread(String threadId) {
-//        return chatRoomRepository.findByThread(threadId)
-//                .orElseThrow(() -> new IllegalArgumentException("Thread ID에 해당하는 채팅방이 없습니다."));
-//    }
-
-    /** 채팅방 단일 조회 */
-    @Transactional
-    public ChatRoomResponse getChatRoom(String roomId) {
-        ChatRoom room = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new IllegalArgumentException("채팅방이 존재하지 않습니다."));
-
-        ChatRoomResponse response = ChatRoomResponse.fromEntity(room);
-
-        if (room.getLastMessage() != null) {
-            try {
-                EstimateResult parsed = estimateResultProcessor.parse(room.getLastMessage());
-                if (parsed.getBuildName() != null) {
-                    response.setTitle(parsed.getBuildName());
+                    estimateProductRepository.save(ep);
                 }
-                if (parsed.getBuildDescription() != null) {
-                    response.setLastMessage(parsed.getBuildDescription());
-                }
-            } catch (Exception e) {
-                response.setLastMessage(room.getLastMessage());
-            }
+            });
         }
 
-        return response;
+        return assistantMsg;
+    }
+
+    // Thread 생성
+    private String createThread() throws IOException {
+        Request request = new Request.Builder()
+                .url("https://api.openai.com/v1/threads")
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .header("OpenAI-Beta", "assistants=v2")
+                .post(RequestBody.create("{}", JSON))
+                .build();
+
+        try (Response response = client.newCall(request).execute()) {
+            JsonNode root = objectMapper.readTree(response.body().string());
+            return root.get("id").asText();
+        }
+    }
+
+    // 메시지 추가
+    private void addMessageToThread(String threadId, String content) throws IOException {
+        String bodyJson = objectMapper.writeValueAsString(
+                Map.of("role", "user", "content", content)
+        );
+
+        Request request = new Request.Builder()
+                .url("https://api.openai.com/v1/threads/" + threadId + "/messages")
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .header("OpenAI-Beta", "assistants=v2")
+                .post(RequestBody.create(bodyJson, JSON))
+                .build();
+
+        client.newCall(request).execute().close();
+    }
+
+    // Run 생성
+    private String createRun(String threadId) throws IOException {
+        String bodyJson = "{ \"assistant_id\": \"" + assistantId + "\" }";
+
+        Request request = new Request.Builder()
+                .url("https://api.openai.com/v1/threads/" + threadId + "/runs")
+                .header("Authorization", "Bearer " + apiKey)
+                .header("Content-Type", "application/json")
+                .header("OpenAI-Beta", "assistants=v2")
+                .post(RequestBody.create(bodyJson, JSON))
+                .build();
+
+        try (Response response = client.newCall(request).execute()) {
+            if (!response.isSuccessful()) {
+                throw new IOException("Run 생성 실패: " + response.body().string());
+            }
+            JsonNode root = objectMapper.readTree(response.body().string());
+            return root.get("id").asText();
+        }
+    }
+
+    // Run 완료 대기
+    private String waitForRunCompletion(String threadId, String runId) throws IOException {
+        String status = "in_progress";
+        while (!status.equals("completed")) {
+            Request request = new Request.Builder()
+                    .url("https://api.openai.com/v1/threads/" + threadId + "/runs/" + runId)
+                    .header("Authorization", "Bearer " + apiKey)
+                    .header("OpenAI-Beta", "assistants=v2")
+                    .build();
+
+            try (Response response = client.newCall(request).execute()) {
+                JsonNode root = objectMapper.readTree(response.body().string());
+                status = root.get("status").asText();
+                if (status.equals("completed")) break;
+            }
+
+            try { Thread.sleep(2000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+        }
+
+        Request msgRequest = new Request.Builder()
+                .url("https://api.openai.com/v1/threads/" + threadId + "/messages")
+                .header("Authorization", "Bearer " + apiKey)
+                .header("OpenAI-Beta", "assistants=v2")
+                .build();
+
+        try (Response response = client.newCall(msgRequest).execute()) {
+            JsonNode root = objectMapper.readTree(response.body().string());
+            return root.get("data").get(0).get("content").get(0).get("text").get("value").asText();
+        }
+    }
+
+    @Transactional
+    public ChatRoomResponse createChatRoom(String userId, String title) throws IOException {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저"));
+
+        String threadId = createThread();
+
+        ChatRoom room = ChatRoom.builder()
+                .user(user)
+                .title(title != null ? title : "새 채팅방")
+                .thread(threadId)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        chatRoomRepository.save(room);
+        return ChatRoomResponse.fromEntity(room);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChatMessageResponse> getChatMessages(String roomId) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방 없음"));
+        return chatMessageRepository.findByChatRoom(room).stream()
+                .map(ChatMessageResponse::fromEntity)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<ChatRoomResponse> getUserChatRooms(String userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 유저"));
+
+        return chatRoomRepository.findByUser(user).stream()
+                .map(ChatRoomResponse::fromEntity)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ChatRoomResponse getChatRoom(String roomId) {
+        return chatRoomRepository.findById(roomId)
+                .map(ChatRoomResponse::fromEntity)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방 없음"));
     }
 
 
-    /** 채팅방 수정 */
     @Transactional
     public ChatRoomResponse updateChatRoom(String roomId, ChatRoomRequest request) {
         ChatRoom room = chatRoomRepository.findById(roomId)
-                .orElseThrow(() -> new IllegalArgumentException("채팅방이 존재하지 않습니다."));
+                .orElseThrow(() -> new IllegalArgumentException("채팅방 없음"));
 
         room.setTitle(request.getTitle());
         room.setUpdatedAt(LocalDateTime.now());
 
-        ChatRoom updatedRoom = chatRoomRepository.save(room);
-        return ChatRoomResponse.fromEntity(updatedRoom);
+        chatRoomRepository.save(room);
+        return ChatRoomResponse.fromEntity(room);
+    }
+
+    @Transactional
+    public void deleteChatRoom(String roomId) {
+        ChatRoom room = chatRoomRepository.findById(roomId)
+                .orElseThrow(() -> new IllegalArgumentException("채팅방 없음"));
+
+        chatMessageRepository.deleteAllByChatRoom(room);
+        aiEstimateRepository.deleteAllByChatRoom(room);
+
+        chatRoomRepository.delete(room);
+    }
+
+    private Integer parsePrice(String priceStr) {
+        if (priceStr == null) return 0;
+        try {
+            return Integer.parseInt(priceStr.replaceAll("[^0-9]", ""));
+        } catch (Exception e) {
+            return 0;
+        }
     }
 }

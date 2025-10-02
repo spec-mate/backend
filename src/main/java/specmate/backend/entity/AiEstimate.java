@@ -29,10 +29,6 @@ public class AiEstimate {
     private User user;
 
     @ManyToOne
-    @JoinColumn(name = "assistant_id", nullable = false)
-    private Assistant assistant;
-
-    @ManyToOne
     @JoinColumn(name = "message_id", nullable = false)
     private ChatMessage message; // 요구사항 메시지
 

@@ -19,13 +19,31 @@ public class EstimateResultProcessor {
                     .trim();
 
             cleaned = cleaned.replaceAll("(?<=\\d)_(?=\\d)", "");
-
             cleaned = cleaned.replaceAll("([0-9]),([0-9])", "$1$2")
                     .replaceAll("([0-9])원", "$1");
 
-            return objectMapper.readValue(cleaned, EstimateResult.class);
+            EstimateResult result = objectMapper.readValue(cleaned, EstimateResult.class);
+
+            if (result.getBuildName() == null || result.getBuildName().isBlank()) {
+                result.setBuildName("AI 견적");
+            }
+            if (result.getTotalPrice() == null || result.getTotalPrice().isBlank()) {
+                result.setTotalPrice("0");
+            }
+            if (result.getProducts() == null) {
+                result.setProducts(new java.util.ArrayList<>());
+            }
+
+            return result;
+
         } catch (Exception e) {
-            throw new IllegalArgumentException("GPT 응답 전처리에 실패했습니다. (파싱 오류 확인 필요)", e);
+            EstimateResult fallback = new EstimateResult();
+            fallback.setBuildName("AI 견적");
+            fallback.setTotalPrice("0");
+            fallback.setProducts(new java.util.ArrayList<>());
+            return fallback;
         }
     }
+
+
 }

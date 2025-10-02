@@ -13,7 +13,6 @@ import specmate.backend.dto.chat.ChatMessageResponse;
 import specmate.backend.dto.chatroom.ChatRoomRequest;
 import specmate.backend.dto.chatroom.ChatRoomResponse;
 import specmate.backend.entity.ChatMessage;
-import specmate.backend.entity.ChatRoom;
 import specmate.backend.processor.EstimateResultProcessor;
 import specmate.backend.service.chat.ChatService;
 
@@ -23,7 +22,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/chat")
 @RequiredArgsConstructor
-@Tag(name = "Chat", description = "Assistant 기반 채팅방/메시지 관리 API")
+@Tag(name = "Chat", description = "OpenAI Assistant 기반 채팅방/메시지 관리 API")
 public class ChatController {
 
     private final ChatService chatService;
@@ -32,12 +31,16 @@ public class ChatController {
     /** 채팅방 생성 */
     @Operation(
             summary = "채팅방 생성",
-            description = "새로운 채팅방을 생성합니다. 내부적으로 Assistant가 자동 생성되어 연결됩니다.",
+            description = "새로운 채팅방을 생성합니다.",
             security = { @SecurityRequirement(name = "bearerAuth") }
     )
     @PostMapping("/rooms")
-    public ResponseEntity<ChatRoomResponse> createChatRoom(@RequestBody ChatRoomRequest request) throws IOException {
-        ChatRoomResponse room = chatService.createChatRoomWithAssistant(request.getTitle());
+    public ResponseEntity<ChatRoomResponse> createChatRoom(
+            @RequestBody ChatRoomRequest request,
+            Authentication authentication
+    ) throws IOException {
+        String userId = authentication.getName();
+        ChatRoomResponse room = chatService.createChatRoom(userId, request.getTitle());
         return ResponseEntity.ok(room);
     }
 
@@ -53,7 +56,6 @@ public class ChatController {
             @RequestBody ChatMessageRequest request
     ) throws IOException {
         ChatMessage assistantMsg = chatService.processUserMessage(roomId, request.getPrompt());
-
         EstimateResult result = estimateResultProcessor.parse(assistantMsg.getContent());
         return ResponseEntity.ok(result);
     }

@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import specmate.backend.entity.ChatMessage;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -18,5 +19,14 @@ public class ChatMessageResponse {
     private String roomId;
     private Map<String, Object> parsedJson;
     private LocalDateTime createdAt;
-}
 
+    public static ChatMessageResponse fromEntity(ChatMessage entity) {
+        return ChatMessageResponse.builder()
+                .sender(entity.getSender().name())
+                .content(entity.getContent())
+                .roomId(entity.getChatRoom().getId())
+                .parsedJson(null)
+                .createdAt(entity.getCreatedAt())
+                .build();
+    }
+}

@@ -26,7 +26,8 @@ public class EstimateResult {
     @JsonProperty("another_input_text")
     private List<String> anotherInputText;
 
-    @JsonProperty("components")
+    @JsonProperty("components")     // JSON 내려갈 땐 components
+    @JsonAlias({"products"})        // JSON 들어올 땐 products도 허용
     private List<Product> products;
 
     @Data

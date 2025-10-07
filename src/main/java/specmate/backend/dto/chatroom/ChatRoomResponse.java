@@ -30,7 +30,6 @@ public class ChatRoomResponse {
                 .createdAt(room.getCreatedAt())
                 .updatedAt(room.getUpdatedAt())
                 .userNickname(room.getUser().getNickname())
-                .assistantName(room.getAssistant() != null ? room.getAssistant().getName() : null)
                 .build();
     }
 }

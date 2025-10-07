@@ -1,5 +1,6 @@
 package specmate.backend.dto.aiestimate;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,5 +23,6 @@ public class AiEstimateResponse {
     private String title;
     private Integer totalPrice;
 
+    @JsonProperty("components")
     private List<ProductResponse> products; // 견적에 포함된 상품 정보
 }

@@ -24,10 +24,6 @@ public class ChatRoom {
     @JoinColumn(name = "user_id")
     private User user;
 
-    @ManyToOne
-    @JoinColumn(name = "assistant_id")
-    private Assistant assistant;
-
     @Column(name = "thread_id")
     private String thread;
 

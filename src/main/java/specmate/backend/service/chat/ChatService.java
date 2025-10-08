@@ -102,7 +102,7 @@ public class ChatService {
 
         aiEstimateRepository.save(estimate);
 
-        // 부품 저장
+        // 부품 저장    
         if (result.getProducts() != null && !result.getProducts().isEmpty()) {
             result.getProducts().forEach(p -> {
                 Product matchedProduct = productRepository

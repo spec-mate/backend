@@ -6,6 +6,7 @@
 //import org.springframework.web.socket.TextMessage;
 //import org.springframework.web.socket.WebSocketSession;
 //import org.springframework.web.socket.handler.TextWebSocketHandler;
+//import specmate.backend.dto.chat.GPTResponse;
 //import specmate.backend.dto.aiestimate.EstimateResult;
 //import specmate.backend.processor.EstimateResultProcessor;
 //import specmate.backend.service.chat.ChatService;

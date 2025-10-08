@@ -22,7 +22,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/chat")
 @RequiredArgsConstructor
-@Tag(name = "Chat", description = "채팅방/메시지 관리 API")
+@Tag(name = "Chat", description = "OpenAI Assistant 기반 채팅방/메시지 관리 API")
 public class ChatController {
 
     private final ChatService chatService;
@@ -47,7 +47,7 @@ public class ChatController {
     /** 사용자 메시지 전송 */
     @Operation(
             summary = "메시지 전송",
-            description = "특정 채팅방에 메시지를 전송하고, GPT 응답을 반환합니다.",
+            description = "특정 채팅방에 메시지를 전송하고, GPT Assistant 응답을 반환합니다.",
             security = { @SecurityRequirement(name = "bearerAuth") }
     )
     @PostMapping("/rooms/{roomId}/messages")

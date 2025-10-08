@@ -45,7 +45,7 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    @Operation(summary = "로그아웃", description = "AccessToken을 블랙리스트 처리하고 RefreshToken을 제거합니다.")
+    @Operation(summary = "로그아웃", description = "AccessToken을 블랙리스트 처리, RefreshToken을 제거")
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@RequestHeader("Authorization") String authorizationHeader) {
         String token = authorizationHeader.replace("Bearer ", "");

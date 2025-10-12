@@ -9,5 +9,5 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface ChatRoomRepository extends JpaRepository<ChatRoom, String> {
-    List<ChatRoom> findByUser(User user);
+    List<ChatRoom> findByUserOrderByCreatedAtDesc(User user);
 }

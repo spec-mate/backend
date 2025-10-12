@@ -12,6 +12,6 @@ import java.util.Optional;
 
 public interface ChatMessageRepository extends JpaRepository<ChatMessage, String> {
 
-    List<ChatMessage> findByChatRoom(ChatRoom chatRoom);
-    void deleteAllByChatRoom(ChatRoom room);
+    List<ChatMessage> findByChatRoomOrderByCreatedAtAsc(ChatRoom chatRoom);
+    void deleteAllByChatRoom(ChatRoom chatRoom);
 }

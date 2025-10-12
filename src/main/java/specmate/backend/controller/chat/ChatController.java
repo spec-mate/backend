@@ -22,7 +22,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/chat")
 @RequiredArgsConstructor
-@Tag(name = "Chat", description = "OpenAI Assistant 기반 채팅방/메시지 관리 API")
+@Tag(name = "Chat", description = "채팅방/메시지 관리 API")
 public class ChatController {
 
     private final ChatService chatService;
@@ -32,7 +32,7 @@ public class ChatController {
     @Operation(
             summary = "채팅방 생성",
             description = "새로운 채팅방을 생성합니다.",
-            security = { @SecurityRequirement(name = "bearerAuth") }
+            security = {@SecurityRequirement(name = "bearerAuth")}
     )
     @PostMapping("/rooms")
     public ResponseEntity<ChatRoomResponse> createChatRoom(
@@ -44,19 +44,27 @@ public class ChatController {
         return ResponseEntity.ok(room);
     }
 
-    /** 사용자 메시지 전송 */
+    /** 사용자 메시지 전송 (RAG + GPT 견적 생성) */
     @Operation(
             summary = "메시지 전송",
-            description = "특정 채팅방에 메시지를 전송하고, GPT Assistant 응답을 반환합니다.",
-            security = { @SecurityRequirement(name = "bearerAuth") }
+            description = """
+                    사용자의 메시지를 받아 PgVector 기반 문서 검색을 수행하고,
+                    OpenAI ChatModel로부터 JSON 형식의 견적 응답을 생성하여 반환합니다.
+                    """,
+            security = {@SecurityRequirement(name = "bearerAuth")}
     )
     @PostMapping("/rooms/{roomId}/messages")
     public ResponseEntity<EstimateResult> sendMessage(
             @PathVariable String roomId,
             @RequestBody ChatMessageRequest request
     ) throws IOException {
+
+        // RAG + GPT 통합 로직 (ChatService 내부 수행)
         ChatMessage assistantMsg = chatService.processUserMessage(roomId, request.getPrompt());
+
+        // GPT 응답(JSON) → EstimateResult로 변환
         EstimateResult result = estimateResultProcessor.parse(assistantMsg.getContent());
+
         return ResponseEntity.ok(result);
     }
 
@@ -64,7 +72,7 @@ public class ChatController {
     @Operation(
             summary = "채팅방 메시지 조회",
             description = "특정 채팅방의 모든 메시지를 조회합니다.",
-            security = { @SecurityRequirement(name = "bearerAuth") }
+            security = {@SecurityRequirement(name = "bearerAuth")}
     )
     @GetMapping("/rooms/{roomId}/messages")
     public ResponseEntity<List<ChatMessageResponse>> getMessages(@PathVariable String roomId) {
@@ -74,8 +82,8 @@ public class ChatController {
     /** 채팅방 목록 조회 */
     @Operation(
             summary = "채팅방 목록 조회",
-            description = "사용자가 참여한 모든 채팅방을 조회합니다.",
-            security = { @SecurityRequirement(name = "bearerAuth") }
+            description = "사용자가 생성한 모든 채팅방을 조회합니다.",
+            security = {@SecurityRequirement(name = "bearerAuth")}
     )
     @GetMapping("/rooms")
     public ResponseEntity<List<ChatRoomResponse>> getUserChatRooms(Authentication authentication) {
@@ -86,8 +94,8 @@ public class ChatController {
     /** 채팅방 단일 조회 */
     @Operation(
             summary = "채팅방 단일 조회",
-            description = "특정 채팅방 정보를 조회합니다.",
-            security = { @SecurityRequirement(name = "bearerAuth") }
+            description = "특정 채팅방의 정보를 조회합니다.",
+            security = {@SecurityRequirement(name = "bearerAuth")}
     )
     @GetMapping("/rooms/{roomId}")
     public ResponseEntity<ChatRoomResponse> getChatRoom(@PathVariable String roomId) {
@@ -98,7 +106,7 @@ public class ChatController {
     @Operation(
             summary = "채팅방 수정",
             description = "채팅방 제목을 수정합니다.",
-            security = { @SecurityRequirement(name = "bearerAuth") }
+            security = {@SecurityRequirement(name = "bearerAuth")}
     )
     @PatchMapping("/rooms/{roomId}")
     public ResponseEntity<ChatRoomResponse> updateChatRoom(
@@ -112,7 +120,7 @@ public class ChatController {
     @Operation(
             summary = "채팅방 삭제",
             description = "채팅방을 삭제합니다.",
-            security = { @SecurityRequirement(name = "bearerAuth") }
+            security = {@SecurityRequirement(name = "bearerAuth")}
     )
     @DeleteMapping("/rooms/{roomId}")
     public ResponseEntity<Void> deleteChatRoom(@PathVariable String roomId) {

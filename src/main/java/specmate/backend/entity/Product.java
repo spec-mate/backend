@@ -49,6 +49,9 @@ public class Product {
     @Column(nullable = false)
     private String type;
 
+    @Column(columnDefinition = "vector(1536)")
+    private float[] vector;
+
     @Column(nullable = false)
     private String manufacturer;
 }

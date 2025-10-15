@@ -18,8 +18,6 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
 
     List<Product> findAllByName(String name);
 
-    long countByVectorIsNull();
-
     @Query(value = """
         SELECT * 
         FROM products 

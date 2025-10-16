@@ -24,22 +24,22 @@
 //    @Override
 //    public void run(String... args) throws Exception {
 //        if (productRepository.count() > 0) {
-//            log.info("✅ Product 데이터 이미 존재. 로드 건너뜀.");
+//            log.info("Product 데이터 이미 존재. 로드 건너뜀.");
 //            return;
 //        }
 //
 //        InputStream inputStream = getClass().getResourceAsStream("/merged.json");
 //        if (inputStream == null) {
-//            log.error("❌ merged.json 파일을 찾을 수 없습니다. /resources/merged.json 경로를 확인하세요.");
+//            log.error("merged.json 파일을 찾을 수 없습니다. /resources/merged.json 경로를 확인하세요.");
 //            return;
 //        }
 //
 //        try {
 //            List<Product> products = objectMapper.readValue(inputStream, new TypeReference<>() {});
 //            productRepository.saveAll(products);
-//            log.info("✅ {}개의 Product 데이터 삽입 완료.", products.size());
+//            log.info("{}개의 Product 데이터 삽입 완료.", products.size());
 //        } catch (Exception e) {
-//            log.error("❌ Product 데이터 삽입 실패: {}", e.getMessage());
+//            log.error("Product 데이터 삽입 실패: {}", e.getMessage());
 //        }
 //    }
 //}

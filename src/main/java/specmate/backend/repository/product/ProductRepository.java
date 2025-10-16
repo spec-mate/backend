@@ -18,6 +18,8 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
 
     List<Product> findAllByName(String name);
 
+    Optional<Product> findFirstByNameContainingIgnoreCase(String name);
+
     @Query(value = """
         SELECT * 
         FROM products 

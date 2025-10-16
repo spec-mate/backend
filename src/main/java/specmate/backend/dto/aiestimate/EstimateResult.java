@@ -35,12 +35,10 @@ public class EstimateResult {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Product {
-        private String id;
         @JsonAlias({"category", "type"})
         private String type;
         private String name;
         private String price;
         private String description;
-        private Float similarity;
     }
 }

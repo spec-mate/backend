@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import specmate.backend.entity.Product;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product, Integer> {
 
@@ -15,7 +16,9 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
 
     Page<Product> findByType(String type, Pageable pageable);
 
-    List<Product> findByNameContainingIgnoreCase(String name);
+    List<Product> findAllByName(String name);
+
+    Optional<Product> findFirstByNameContainingIgnoreCase(String name);
 
     @Query(value = """
         SELECT * 

@@ -8,6 +8,5 @@ import java.util.List;
 import java.util.UUID;
 
 public interface AiEstimateRepository extends JpaRepository<AiEstimate, String> {
-
     void deleteAllByChatRoom(ChatRoom room);
 }

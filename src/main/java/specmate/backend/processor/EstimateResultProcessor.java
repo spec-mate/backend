@@ -1,49 +1,207 @@
 package specmate.backend.processor;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import specmate.backend.dto.aiestimate.EstimateResult;
+import specmate.backend.dto.aiestimate.EstimateResult.Product;
 
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class EstimateResultProcessor {
 
     private final ObjectMapper objectMapper;
 
+    private static final List<String> SERIES_ORDER = List.of(
+            "case", "cpu", "vga", "RAM", "ssd", "power", "mainboard", "cooler", "hdd"
+    );
+
+    private static final Map<String, String> MAIN_KEY_NORMALIZER;
+    static {
+        Map<String, String> m = new HashMap<>();
+        for (String k : List.of("case", "chassis", "tower")) m.put(k, "case");
+        for (String k : List.of("cpu", "processor")) m.put(k, "cpu");
+        for (String k : List.of("vga","gpu","graphics","graphic_card","video_card")) m.put(k, "vga");
+        for (String k : List.of("ram","RAM","ram_memory","memory","dimm","ddr","ddr4","ddr5")) m.put(k, "RAM");
+        for (String k : List.of("ssd","nvme","m2","m_2","solid_state_drive","storage")) m.put(k, "ssd");
+        for (String k : List.of("power","psu","power_supply","smps")) m.put(k, "power");
+        for (String k : List.of("mainboard","motherboard","mb")) m.put(k, "mainboard");
+        for (String k : List.of("cooler","cooling","cpu_cooler")) m.put(k, "cooler");
+        for (String k : List.of("hdd","harddisk","hard_drive")) m.put(k, "hdd");
+        MAIN_KEY_NORMALIZER = m;
+    }
+
+    private static String normalizeType(String raw) {
+        if (raw == null) return "unknown";
+        String s = raw.trim().toLowerCase(Locale.ROOT);
+        if (MAIN_KEY_NORMALIZER.containsKey(s)) return MAIN_KEY_NORMALIZER.get(s);
+        return s;
+    }
+
+    /** 기존 parse() 그대로 유지 — 기본 버전 */
     public EstimateResult parse(String gptMessage) {
+        return parse(gptMessage, Collections.emptyMap());
+    }
+
+    public EstimateResult parse(String gptMessage, Map<String, Product> fallbackMap) {
         try {
-            String cleaned = gptMessage
-                    .replaceAll("(?s)```json", "")
-                    .replaceAll("(?s)```", "")
-                    .trim();
+            String cleaned = extractJsonOnly(gptMessage);
+            JsonNode root = objectMapper.readTree(cleaned);
 
-            cleaned = cleaned.replaceAll("(?<=\\d)_(?=\\d)", "");
-            cleaned = cleaned.replaceAll("([0-9]),([0-9])", "$1$2")
-                    .replaceAll("([0-9])원", "$1");
+            EstimateResult result = new EstimateResult();
+            result.setBuildName(getText(root, "build_name", ""));
+            result.setBuildDescription(getText(root, "note"));
+            result.setTotalPrice(getText(root, "total", "0"));
+            result.setNotes(getText(root, "intro"));
 
-            EstimateResult result = objectMapper.readValue(cleaned, EstimateResult.class);
-
-            if (result.getBuildName() == null || result.getBuildName().isBlank()) {
-                result.setBuildName("AI 견적");
-            }
-            if (result.getTotalPrice() == null || result.getTotalPrice().isBlank()) {
-                result.setTotalPrice("0");
-            }
-            if (result.getProducts() == null) {
-                result.setProducts(new java.util.ArrayList<>());
+            if (root.has("another_input_text") && root.get("another_input_text").isArray()) {
+                List<String> qList = new ArrayList<>();
+                for (JsonNode q : root.get("another_input_text")) qList.add(q.asText());
+                result.setAnotherInputText(qList);
+            } else {
+                result.setAnotherInputText(List.of());
             }
 
+            // GPT 응답으로부터 부품 파싱
+            Map<String, Product> pick = new LinkedHashMap<>();
+
+            if (root.has("main") && root.get("main").isObject()) {
+                JsonNode main = root.get("main");
+                Iterator<String> it = main.fieldNames();
+                while (it.hasNext()) {
+                    String key = it.next();
+                    String normalized = normalizeType(key);
+                    JsonNode item = main.get(key);
+                    Product p = new Product();
+                    p.setType(normalized);
+                    p.setName(getText(item, "name", "미선택"));
+                    p.setDescription(getText(item, "description", "정보 없음"));
+                    p.setPrice(cleanPrice(getText(item, "price", "0")));
+                    pick.put(normalized, p);
+                }
+            } else if (root.has("components") && root.get("components").isArray()) {
+                for (JsonNode node : root.get("components")) {
+                    Product p = objectMapper.treeToValue(node, Product.class);
+                    p.setType(normalizeType(p.getType()));
+                    p.setPrice(cleanPrice(p.getPrice()));
+                    pick.putIfAbsent(p.getType(), p);
+                }
+            } else if (root.has("products") && root.get("products").isArray()) {
+                for (JsonNode node : root.get("products")) {
+                    Product p = objectMapper.treeToValue(node, Product.class);
+                    p.setType(normalizeType(p.getType()));
+                    p.setPrice(cleanPrice(p.getPrice()));
+                    pick.putIfAbsent(p.getType(), p);
+                }
+            }
+
+            // fallbackMap 병합 (누락된 부품 채움)
+            if (fallbackMap != null && !fallbackMap.isEmpty()) {
+                for (var entry : fallbackMap.entrySet()) {
+                    String type = normalizeType(entry.getKey());
+                    Product fb = entry.getValue();
+                    if (!pick.containsKey(type) || "미선택".equalsIgnoreCase(pick.get(type).getName())) {
+                        pick.put(type, fb);
+                    }
+                }
+            }
+
+            //  9개 카테고리 모두 보정
+            List<Product> finalList = new ArrayList<>();
+            for (String cat : SERIES_ORDER) {
+                Product exist = pick.get(cat);
+                if (exist != null) {
+                    if (isBlank(exist.getName())) exist.setName("미선택");
+                    if (isBlank(exist.getPrice())) exist.setPrice("0");
+                    finalList.add(exist);
+                } else {
+                    finalList.add(defaultProduct(cat));
+                }
+            }
+
+            result.setProducts(finalList);
+
+            // total 보정
+            if (isBlank(result.getTotalPrice()) || "0".equals(stripWon(result.getTotalPrice()))) {
+                long sum = finalList.stream().mapToLong(p -> parseLong(stripWon(p.getPrice()))).sum();
+                result.setTotalPrice(Long.toString(sum));
+            }
+
+            log.info("EstimateResult 파싱 완료: {} ({}개 부품)", result.getBuildName(), finalList.size());
             return result;
 
         } catch (Exception e) {
+            log.error("GPT 응답 파싱 실패: {}", e.getMessage());
             EstimateResult fallback = new EstimateResult();
             fallback.setBuildName("AI 견적");
             fallback.setTotalPrice("0");
-            fallback.setProducts(new java.util.ArrayList<>());
+            fallback.setProducts(new ArrayList<>());
+            fallback.setAnotherInputText(List.of());
             return fallback;
         }
     }
 
+    private String extractJsonOnly(String s) {
+        if (s == null) return "{}";
+        String t = s.trim();
+        Pattern code = Pattern.compile("```json\\s*(\\{.*?})\\s*```", Pattern.DOTALL);
+        Matcher m1 = code.matcher(t);
+        if (m1.find()) return sanitizeNumbers(m1.group(1));
+        int first = t.indexOf('{');
+        int last = t.lastIndexOf('}');
+        if (first >= 0 && last > first) return sanitizeNumbers(t.substring(first, last + 1));
+        return "{}";
+    }
 
+    private String sanitizeNumbers(String j) {
+        if (j == null) return null;
+        return j.replaceAll("(?<=\\d)_(?=\\d)", "")
+                .replaceAll("([0-9]),([0-9])", "$1$2")
+                .replaceAll("원", "");
+    }
+
+    private String getText(JsonNode node, String key, String defaultVal) {
+        if (node != null && node.has(key) && !node.get(key).isNull()) {
+            return node.get(key).asText();
+        }
+        return defaultVal;
+    }
+
+    private String getText(JsonNode node, String key) {
+        return getText(node, key, "");
+    }
+
+
+    private boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
+
+    private Product defaultProduct(String type) {
+        Product p = new Product();
+        p.setType(type);
+        p.setName("미선택");
+        p.setDescription("선택된 부품 없음");
+        p.setPrice("0");
+        return p;
+    }
+
+    private String cleanPrice(String s) {
+        if (s == null) return "0";
+        String digits = stripWon(s);
+        return digits.isEmpty() ? "0" : digits;
+    }
+
+    private String stripWon(String s) {
+        return s.replaceAll("[^0-9]", "");
+    }
+
+    private long parseLong(String s) {
+        try { return Long.parseLong(isBlank(s) ? "0" : s); }
+        catch (Exception e) { return 0L; }
+    }
 }

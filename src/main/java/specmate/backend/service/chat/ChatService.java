@@ -38,7 +38,6 @@ public class ChatService {
     private final EstimateResultProcessor estimateResultProcessor;
     private final ProductSearchService productSearchService;
     private final RestClient openAiRestClient;
-    private final ProductRepository productRepository;
 
     @Value("${openai.assistant.id:${OPENAI_ASSISTANT_ID:${openai_assistant_id:}}}")
     private String assistantId;

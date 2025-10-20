@@ -37,3 +37,8 @@ out/
 
 ### VS Code ###
 .vscode/
+
+### websocket ###
+/src/main/specmate.backend/config/WebSocketConfig.java
+/src/main/specmate.backend/handler/ChatWebSocketHandler.java
+/src/main/specmate.backend/repository/EstimateProductRepository

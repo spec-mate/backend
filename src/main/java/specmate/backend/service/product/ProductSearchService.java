@@ -9,7 +9,6 @@ import org.springframework.transaction.annotation.Transactional;
 import specmate.backend.entity.Product;
 import specmate.backend.entity.ProductEmbedding;
 import specmate.backend.repository.embedding.ProductEmbeddingRepository;
-import specmate.backend.repository.product.ProductRepository;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -22,14 +21,6 @@ public class ProductSearchService {
 
     private final EmbeddingModel embeddingModel;
     private final ProductEmbeddingRepository embeddingRepository;
-    private final ProductRepository productRepository;
-
-
-    public Optional<ProductEmbedding> getCheapestByType(String type) {
-        return embeddingRepository.findCheapestByType(type);
-    }
-
-
 
     /** 카테고리별 의미 기반 검색 (fallback 포함) */
     @Transactional(readOnly = true)

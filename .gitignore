@@ -39,6 +39,6 @@ out/
 .vscode/
 
 ### websocket ###
-/src/main/specmate/backend/config/WebSocketConfig.java
-/src/main/specmate/backend/handler/ChatWebSocketHandler.java
-/src/main/specmate/backend/repository/EstimateProductRepository
+/src/main/java/specmate/backend/config/WebSocketConfig.java
+/src/main/java/specmate/backend/handler/ChatWebSocketHandler.java
+/src/main/java/specmate/backend/repository/EstimateProductRepository.java

@@ -28,8 +28,10 @@
         @Column(nullable = false)
         private String image;
 
+        @JsonProperty("pop_rank")
         private Integer popRank;
 
+        @JsonProperty("reg_date")
         private String regDate;
 
         /** 옵션 정보 (Map 구조 → jsonb 저장) */
@@ -40,11 +42,13 @@
         /** 가격 정보 (리스트 구조 → jsonb 저장) */
         @Type(JsonBinaryType.class)
         @Column(columnDefinition = "jsonb")
+        @JsonProperty("price_info")
         private List<Map<String, Object>> priceInfo;
 
         /** 최저가 정보 */
         @Type(JsonBinaryType.class)
         @Column(columnDefinition = "jsonb")
+        @JsonProperty("lowest_price")
         private Map<String, Object> lowestPrice;
 
         @Column(nullable = false)

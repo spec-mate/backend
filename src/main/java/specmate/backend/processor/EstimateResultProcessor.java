@@ -5,8 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import specmate.backend.dto.aiestimate.EstimateResult;
-import specmate.backend.dto.aiestimate.EstimateResult.Product;
+import specmate.backend.dto.estimate.ai.EstimateResult;
+import specmate.backend.dto.estimate.ai.EstimateResult.Product;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -41,11 +41,9 @@ public class EstimateResultProcessor {
     private static String normalizeType(String raw) {
         if (raw == null) return "unknown";
         String s = raw.trim().toLowerCase(Locale.ROOT);
-        if (MAIN_KEY_NORMALIZER.containsKey(s)) return MAIN_KEY_NORMALIZER.get(s);
-        return s;
+        return MAIN_KEY_NORMALIZER.getOrDefault(s, s);
     }
 
-    /** 기존 parse() 그대로 유지 — 기본 버전 */
     public EstimateResult parse(String gptMessage) {
         return parse(gptMessage, Collections.emptyMap());
     }
@@ -57,9 +55,9 @@ public class EstimateResultProcessor {
 
             EstimateResult result = new EstimateResult();
             result.setBuildName(getText(root, "build_name", ""));
-            result.setBuildDescription(getText(root, "note"));
+            result.setBuildDescription(getText(root, "build_description"));
             result.setTotalPrice(getText(root, "total", "0"));
-            result.setNotes(getText(root, "intro"));
+            result.setNotes(getText(root, "notes"));
 
             if (root.has("another_input_text") && root.get("another_input_text").isArray()) {
                 List<String> qList = new ArrayList<>();
@@ -69,51 +67,58 @@ public class EstimateResultProcessor {
                 result.setAnotherInputText(List.of());
             }
 
-            // GPT 응답으로부터 부품 파싱
             Map<String, Product> pick = new LinkedHashMap<>();
 
+            // --- ① main 필드 ---
             if (root.has("main") && root.get("main").isObject()) {
                 JsonNode main = root.get("main");
                 Iterator<String> it = main.fieldNames();
                 while (it.hasNext()) {
                     String key = it.next();
-                    String normalized = normalizeType(key);
                     JsonNode item = main.get(key);
                     Product p = new Product();
-                    p.setType(normalized);
+                    p.setType(normalizeType(key));
                     p.setName(getText(item, "name", "미선택"));
-                    p.setDescription(getText(item, "description", "정보 없음"));
+                    p.setDescription(getText(item, "description", "선택된 부품 없음"));
                     p.setPrice(cleanPrice(getText(item, "price", "0")));
-                    pick.put(normalized, p);
-                }
-            } else if (root.has("components") && root.get("components").isArray()) {
-                for (JsonNode node : root.get("components")) {
-                    Product p = objectMapper.treeToValue(node, Product.class);
-                    p.setType(normalizeType(p.getType()));
-                    p.setPrice(cleanPrice(p.getPrice()));
-                    pick.putIfAbsent(p.getType(), p);
-                }
-            } else if (root.has("products") && root.get("products").isArray()) {
-                for (JsonNode node : root.get("products")) {
-                    Product p = objectMapper.treeToValue(node, Product.class);
-                    p.setType(normalizeType(p.getType()));
-                    p.setPrice(cleanPrice(p.getPrice()));
-                    pick.putIfAbsent(p.getType(), p);
+                    pick.put(p.getType(), p);
                 }
             }
 
-            // fallbackMap 병합 (누락된 부품 채움)
+            // --- ② components / products 배열 ---
+            JsonNode listNode = null;
+            if (root.has("components")) listNode = root.get("components");
+            else if (root.has("products")) listNode = root.get("products");
+
+            if (listNode != null && listNode.isArray()) {
+                for (JsonNode node : listNode) {
+                    Product p = new Product();
+                    p.setId(getText(node, "id", null));
+                    // type 필드 보정
+                    String type = getText(node, "type",
+                            getText(node, "category",
+                                    getText(node, "product_type", "unknown")));
+                    p.setType(normalizeType(type));
+                    p.setName(getText(node, "name", "미선택"));
+                    p.setDescription(getText(node, "description", "선택된 부품 없음"));
+                    p.setPrice(cleanPrice(getText(node, "price", "0")));
+                    pick.put(p.getType(), p);
+                }
+            }
+
+            // --- ③ fallbackMap 적용 ---
             if (fallbackMap != null && !fallbackMap.isEmpty()) {
                 for (var entry : fallbackMap.entrySet()) {
                     String type = normalizeType(entry.getKey());
                     Product fb = entry.getValue();
-                    if (!pick.containsKey(type) || "미선택".equalsIgnoreCase(pick.get(type).getName())) {
+                    Product exist = pick.get(type);
+                    if (exist == null || "미선택".equalsIgnoreCase(exist.getName())) {
                         pick.put(type, fb);
                     }
                 }
             }
 
-            //  9개 카테고리 모두 보정
+            // --- ④ 9개 카테고리 강제 정렬 & 보정 ---
             List<Product> finalList = new ArrayList<>();
             for (String cat : SERIES_ORDER) {
                 Product exist = pick.get(cat);
@@ -128,9 +133,11 @@ public class EstimateResultProcessor {
 
             result.setProducts(finalList);
 
-            // total 보정
+            // --- ⑤ totalPrice 보정 ---
             if (isBlank(result.getTotalPrice()) || "0".equals(stripWon(result.getTotalPrice()))) {
-                long sum = finalList.stream().mapToLong(p -> parseLong(stripWon(p.getPrice()))).sum();
+                long sum = finalList.stream()
+                        .mapToLong(p -> parseLong(stripWon(p.getPrice())))
+                        .sum();
                 result.setTotalPrice(Long.toString(sum));
             }
 
@@ -142,7 +149,7 @@ public class EstimateResultProcessor {
             EstimateResult fallback = new EstimateResult();
             fallback.setBuildName("AI 견적");
             fallback.setTotalPrice("0");
-            fallback.setProducts(new ArrayList<>());
+            fallback.setProducts(List.of());
             fallback.setAnotherInputText(List.of());
             return fallback;
         }
@@ -177,7 +184,6 @@ public class EstimateResultProcessor {
     private String getText(JsonNode node, String key) {
         return getText(node, key, "");
     }
-
 
     private boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
 

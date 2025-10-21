@@ -42,5 +42,5 @@ out/
 /src/main/java/specmate/backend/config/WebSocketConfig.java
 /src/main/java/specmate/backend/handler/ChatWebSocketHandler.java
 
-### repo ###
-/src/main/java/specmate/backend/repository/chat/EstimateProductRepository
+### json file ###
+/src/main/resources/merged.json

@@ -82,7 +82,13 @@ public class UserEstimateController {
         return ResponseEntity.ok(userEstimateService.getUserEstimates(userId));
     }
 
-    @Operation(summary = "견적 삭제", description = "특정 견적 삭제 (제품도 함께 삭제됨)", security = { @SecurityRequirement(name = "bearerAuth") })
+    @Operation(summary = "견적 삭제", description = "특정 견적 삭제 (제품도 함께 삭제됨)", security = { @SecurityRequirement(name = "bearerAuth") },
+            responses = {
+                    @ApiResponse(responseCode = "204", description = "견적이 성공적으로 삭제됨"),
+                    @ApiResponse(responseCode = "401", description = "인증 실패 또는 토큰이 유효하지 않음"),
+                    @ApiResponse(responseCode = "403", description = "해당 견적의 삭제 권한이 없음"),
+                    @ApiResponse(responseCode = "404", description = "해당 ID의 견적이 존재하지 않음")
+            })
     @DeleteMapping("/{estimateId}")
     public ResponseEntity<Void> deleteEstimate(@PathVariable String estimateId, Authentication authentication) {
         String userId = (String) authentication.getPrincipal();

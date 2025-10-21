@@ -6,6 +6,8 @@ import lombok.*;
 import org.hibernate.annotations.UuidGenerator;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "user_estimates")
@@ -36,4 +38,7 @@ public class UserEstimate {
 
     @Column(nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
+
+    @OneToMany(mappedBy = "userEstimate", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<UserEstimateProduct> products = new ArrayList<>();
 }

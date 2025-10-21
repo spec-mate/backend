@@ -34,10 +34,8 @@ public class EstimateProduct {
     @Column(nullable = false)
     private Boolean matched = false; // 매핑 성공 여부
 
-    private Float similarity; // 유사도 점수
     private Integer quantity = 1;
     private Integer unitPrice;
-    private Integer totalPrice;
 
     @Column(nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

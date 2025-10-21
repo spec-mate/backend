@@ -1,6 +1,7 @@
-package specmate.backend.dto.aiestimate;
+package specmate.backend.dto.estimate.ai;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
@@ -34,7 +35,13 @@ public class EstimateResult {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL) // null 필드는 직렬화 시 제외
     public static class Product {
+
+        @JsonProperty("id")
+        @JsonAlias({"product_id"})
+        private String id;
+
         @JsonAlias({"category", "type"})
         private String type;
         private String name;

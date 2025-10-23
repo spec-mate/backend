@@ -3,6 +3,7 @@ package specmate.backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.UuidGenerator;
+import specmate.backend.entity.enums.UserAction;
 
 import java.time.LocalDateTime;
 
@@ -39,6 +40,10 @@ public class AiEstimate {
 
     @Column(nullable = false)
     private String status = "active"; // active, updated, deleted
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "user_action", nullable = false)
+    private UserAction userAction = UserAction.NONE;
 
     @Column(nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();

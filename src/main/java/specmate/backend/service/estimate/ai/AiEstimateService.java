@@ -9,6 +9,7 @@ import specmate.backend.dto.estimate.ai.AiEstimateResponse;
 import specmate.backend.dto.estimate.ai.EstimateResult;
 import specmate.backend.entity.*;
 import specmate.backend.entity.enums.SenderType;
+import specmate.backend.entity.enums.UserAction;
 import specmate.backend.repository.chat.AiEstimateRepository;
 import specmate.backend.repository.chat.ChatMessageRepository;
 import specmate.backend.repository.chat.EstimateProductRepository;
@@ -48,6 +49,7 @@ public class AiEstimateService {
                 .title(Optional.ofNullable(result.getBuildName()).orElse("이름 없는 견적"))
                 .totalPrice(parsePrice(result.getTotalPrice()))
                 .status("SUCCESS")
+                .userAction(UserAction.NONE)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -104,6 +106,7 @@ public class AiEstimateService {
                 .title(Optional.ofNullable(request.getTitle()).orElse("AI 견적"))
                 .totalPrice(Optional.ofNullable(request.getTotalPrice()).orElse(0))
                 .status("SAVED")
+                .userAction(UserAction.SAVED)
                 .createdAt(LocalDateTime.now())
                 .updatedAt(LocalDateTime.now())
                 .build();
@@ -138,7 +141,6 @@ public class AiEstimateService {
         List<EstimateProduct> products = estimateProductRepository.findAllByAiEstimateId(aiEstimate.getId());
         return AiEstimateResponse.fromEntityWithProducts(aiEstimate, products);
     }
-
 
     /** 제품 매핑 (자동 저장 시 사용) */
     @Transactional
@@ -187,6 +189,35 @@ public class AiEstimateService {
             estimateProductRepository.save(entity);
         }
     }
+
+    /** 사용자 행동(user_action) 업데이트 */
+    @Transactional
+    public AiEstimateResponse updateUserAction(String aiEstimateId, UserAction action, String userId) {
+        // 견적 조회
+        AiEstimate estimate = aiEstimateRepository.findById(aiEstimateId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 AI 견적입니다."));
+
+        // 권한 검증
+        if (!estimate.getUser().getId().equals(userId)) {
+            throw new SecurityException("해당 견적에 대한 권한이 없습니다.");
+        }
+
+        // Enum 검증
+        if (action == null) {
+            throw new IllegalArgumentException("UserAction 값이 없습니다.");
+        }
+
+        // 상태 업데이트
+        estimate.setUserAction(action);
+        estimate.setUpdatedAt(LocalDateTime.now());
+
+        aiEstimateRepository.save(estimate);
+
+        // 응답 생성
+        List<EstimateProduct> products = estimateProductRepository.findAllByAiEstimateId(aiEstimateId);
+        return AiEstimateResponse.fromEntityWithProducts(estimate, products);
+    }
+
 
     /** 조회, 삭제 로직 */
     @Transactional

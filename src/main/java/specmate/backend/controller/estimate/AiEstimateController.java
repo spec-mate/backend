@@ -59,33 +59,6 @@ public class AiEstimateController {
         return ResponseEntity.ok(estimates);
     }
 
-    /** AI 견적 수동 저장 */
-    @PostMapping
-    @Operation(
-            summary = "AI 견적 수동 저장",
-            description = """
-                사용자가 직접 AI 견적을 저장합니다.<br>
-                ChatService에서 자동 저장된 견적과 달리, 사용자가 선택적으로 저장을 수행합니다.<br>
-                견적 정보(제목, 총 금액, 구성된 상품 등)가 DB에 저장됩니다.
-                """,
-            security = {@SecurityRequirement(name = "bearerAuth")},
-            responses = {
-                    @ApiResponse(responseCode = "201", description = "저장 성공",
-                            content = @Content(schema = @Schema(implementation = AiEstimateResponse.class))),
-                    @ApiResponse(responseCode = "400", description = "잘못된 요청 데이터"),
-                    @ApiResponse(responseCode = "401", description = "인증 실패 (토큰 없음 또는 만료)"),
-                    @ApiResponse(responseCode = "500", description = "서버 내부 오류")
-            }
-    )
-    public ResponseEntity<AiEstimateResponse> createAiEstimate(
-            @RequestBody AiEstimateRequest request,
-            @Parameter(hidden = true) Authentication authentication
-    ) {
-        String userId = authentication.getName();
-        AiEstimateResponse response = aiEstimateService.saveAiEstimate(request, userId);
-        return ResponseEntity.status(201).body(response);
-    }
-
     /** 단일 견적 상세 조회 */
     @Operation(
             summary = "AI 견적 상세 조회",

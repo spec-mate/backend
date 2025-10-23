@@ -1,5 +1,9 @@
 package specmate.backend.dto.estimate.ai;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.*;
 import specmate.backend.entity.AiEstimate;
 import specmate.backend.entity.EstimateProduct;
@@ -76,5 +80,16 @@ public class AiEstimateResponse {
                 .unitPrice(ep.getUnitPrice())
                 .matched(ep.getMatched())
                 .build();
+    }
+
+    public String toJson() {
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+             mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+             mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+            return mapper.writeValueAsString(this);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("AiEstimateResponse 직렬화 실패", e);
+        }
     }
 }

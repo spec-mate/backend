@@ -1,5 +1,5 @@
 package specmate.backend.entity.enums;
 
 public enum MessageStatus {
-    PENDING, SUCCESS, FAILED
+    PENDING, SUCCESS, FAILED, SAVED
 }

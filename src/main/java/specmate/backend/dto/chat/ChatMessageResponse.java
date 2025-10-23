@@ -14,18 +14,22 @@ import java.util.Map;
 @AllArgsConstructor
 @Builder
 public class ChatMessageResponse {
-    private String sender;     // USER or ASSISTANT
-    private String content;
+    private String sender;                   // USER or ASSISTANT
+    private String content;                  // 자연어 reply
     private String roomId;
     private Map<String, Object> parsedJson;
+    private String messageType;
     private LocalDateTime createdAt;
 
     public static ChatMessageResponse fromEntity(ChatMessage entity) {
+        boolean hasJson = entity.getParsedJson() != null && !entity.getParsedJson().isEmpty();
+
         return ChatMessageResponse.builder()
                 .sender(entity.getSender().name())
-                .content(entity.getContent())
+                .content(hasJson ? null : entity.getContent())
                 .roomId(entity.getChatRoom().getId())
-                .parsedJson(null)
+                .parsedJson(hasJson ? entity.getParsedJson() : null)
+                .messageType(hasJson ? "ESTIMATE" : "TEXT")
                 .createdAt(entity.getCreatedAt())
                 .build();
     }

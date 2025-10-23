@@ -51,14 +51,27 @@ public class EstimateResultProcessor {
     public EstimateResult parse(String gptMessage, Map<String, Product> fallbackMap) {
         try {
             String cleaned = extractJsonOnly(gptMessage);
+            EstimateResult result = new EstimateResult();
+
+            if ("{}".equals(cleaned.trim())) {
+                log.info("EstimateResultProcessor JSON 구조가 감지되지 않음 → 비견적성 응답으로 처리");
+                result.setText(gptMessage.trim());
+                result.setProducts(List.of());
+                result.setBuildName("");
+                result.setTotalPrice("0");
+                return result;
+            }
+
             JsonNode root = objectMapper.readTree(cleaned);
 
-            EstimateResult result = new EstimateResult();
+            // 기본 메타 필드
+            result.setText(getText(root, "text", ""));
             result.setBuildName(getText(root, "build_name", ""));
             result.setBuildDescription(getText(root, "build_description"));
             result.setTotalPrice(getText(root, "total", "0"));
             result.setNotes(getText(root, "notes"));
 
+            // 후속 질문 리스트
             if (root.has("another_input_text") && root.get("another_input_text").isArray()) {
                 List<String> qList = new ArrayList<>();
                 for (JsonNode q : root.get("another_input_text")) qList.add(q.asText());
@@ -69,7 +82,7 @@ public class EstimateResultProcessor {
 
             Map<String, Product> pick = new LinkedHashMap<>();
 
-            // --- ① main 필드 ---
+            // main 필드 처리
             if (root.has("main") && root.get("main").isObject()) {
                 JsonNode main = root.get("main");
                 Iterator<String> it = main.fieldNames();
@@ -85,7 +98,7 @@ public class EstimateResultProcessor {
                 }
             }
 
-            // --- ② components / products 배열 ---
+            // components / products 배열 처리
             JsonNode listNode = null;
             if (root.has("components")) listNode = root.get("components");
             else if (root.has("products")) listNode = root.get("products");
@@ -94,7 +107,6 @@ public class EstimateResultProcessor {
                 for (JsonNode node : listNode) {
                     Product p = new Product();
                     p.setId(getText(node, "id", null));
-                    // type 필드 보정
                     String type = getText(node, "type",
                             getText(node, "category",
                                     getText(node, "product_type", "unknown")));
@@ -106,7 +118,7 @@ public class EstimateResultProcessor {
                 }
             }
 
-            // --- ③ fallbackMap 적용 ---
+            // fallbackMap 적용
             if (fallbackMap != null && !fallbackMap.isEmpty()) {
                 for (var entry : fallbackMap.entrySet()) {
                     String type = normalizeType(entry.getKey());
@@ -118,7 +130,7 @@ public class EstimateResultProcessor {
                 }
             }
 
-            // --- ④ 9개 카테고리 강제 정렬 & 보정 ---
+            // 누락된 카테고리 보정 및 정렬
             List<Product> finalList = new ArrayList<>();
             for (String cat : SERIES_ORDER) {
                 Product exist = pick.get(cat);
@@ -130,10 +142,9 @@ public class EstimateResultProcessor {
                     finalList.add(defaultProduct(cat));
                 }
             }
-
             result.setProducts(finalList);
 
-            // --- ⑤ totalPrice 보정 ---
+            // totalPrice 보정
             if (isBlank(result.getTotalPrice()) || "0".equals(stripWon(result.getTotalPrice()))) {
                 long sum = finalList.stream()
                         .mapToLong(p -> parseLong(stripWon(p.getPrice())))
@@ -149,12 +160,16 @@ public class EstimateResultProcessor {
             EstimateResult fallback = new EstimateResult();
             fallback.setBuildName("AI 견적");
             fallback.setTotalPrice("0");
+            fallback.setNotes("GPT 응답 파싱 실패");
+            fallback.setBuildDescription("임시 기본 견적입니다.");
             fallback.setProducts(List.of());
             fallback.setAnotherInputText(List.of());
+            fallback.setText("");
             return fallback;
         }
     }
 
+    /** JSON 문자열만 추출 */
     private String extractJsonOnly(String s) {
         if (s == null) return "{}";
         String t = s.trim();
@@ -175,8 +190,12 @@ public class EstimateResultProcessor {
     }
 
     private String getText(JsonNode node, String key, String defaultVal) {
-        if (node != null && node.has(key) && !node.get(key).isNull()) {
-            return node.get(key).asText();
+        if (node == null) return defaultVal;
+        for (String alt : List.of(key, key.toLowerCase(), key.toUpperCase(),
+                key.replace("_", ""), key.replace("_", "-"))) {
+            if (node.has(alt) && !node.get(alt).isNull()) {
+                return node.get(alt).asText();
+            }
         }
         return defaultVal;
     }
@@ -184,6 +203,32 @@ public class EstimateResultProcessor {
     private String getText(JsonNode node, String key) {
         return getText(node, key, "");
     }
+
+    /** 비견적성 응답 판단 로직 개선 */
+    public boolean isNonEstimateResponse(EstimateResult result) {
+        if (result == null) return true;
+
+        // 부품이 존재하고, 실제로 하나라도 선택된 부품이 있으면 견적 응답으로 간주
+        if (result.getProducts() != null && !result.getProducts().isEmpty()) {
+            boolean anySelected = result.getProducts().stream().anyMatch(p ->
+                    !"미선택".equalsIgnoreCase(p.getName()) &&
+                            !"0".equals(stripWon(p.getPrice())) &&
+                            !isBlank(p.getDescription())
+            );
+            if (anySelected) {
+                return false; // 실제 견적 존재
+            }
+        }
+
+        // 견적 이름(build_name) 또는 금액(totalPrice)이 유효하면 견적 응답으로 간주
+        if (!isBlank(result.getBuildName()) && !"0".equals(stripWon(result.getTotalPrice()))) {
+            return false;
+        }
+
+        // 위 조건이 모두 아니라면 text만 존재하는 비견적성 응답
+        return result.getText() != null && !result.getText().isBlank();
+    }
+
 
     private boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
 

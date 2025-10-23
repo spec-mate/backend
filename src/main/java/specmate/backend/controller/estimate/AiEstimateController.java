@@ -18,7 +18,7 @@ import specmate.backend.service.estimate.ai.AiEstimateService;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/estimates")
+@RequestMapping("/api/aiestimates")
 @RequiredArgsConstructor
 @Tag(
         name = "AI Estimate API",
@@ -74,12 +74,12 @@ public class AiEstimateController {
                     @ApiResponse(responseCode = "401", description = "인증 실패 (토큰 없음 또는 만료)")
             }
     )
-    @GetMapping("/{estimateId}")
+    @GetMapping("/{aiestimateId}")
     public ResponseEntity<AiEstimateResponse> getEstimateDetail(
             @Parameter(description = "조회할 AI 견적의 ID", example = "8f1b2cda-4b6e-478c-bf54-b9eecbe9d02e")
-            @PathVariable String estimateId
+            @PathVariable String aiestimateId
     ) {
-        AiEstimateResponse response = aiEstimateService.getEstimateWithProducts(estimateId);
+        AiEstimateResponse response = aiEstimateService.getEstimateWithProducts(aiestimateId);
         return ResponseEntity.ok(response);
     }
 
@@ -100,14 +100,14 @@ public class AiEstimateController {
                     @ApiResponse(responseCode = "404", description = "해당 견적을 찾을 수 없음")
             }
     )
-    @DeleteMapping("/{estimateId}")
+    @DeleteMapping("/{aiestimateId}")
     public ResponseEntity<Void> deleteEstimate(
             @Parameter(description = "삭제할 AI 견적의 ID", example = "8f1b2cda-4b6e-478c-bf54-b9eecbe9d02e")
-            @PathVariable String estimateId,
+            @PathVariable String aiestimateId,
             @Parameter(hidden = true) Authentication authentication
     ) {
         String userId = authentication.getName();
-        aiEstimateService.deleteAiEstimate(estimateId, userId);
+        aiEstimateService.deleteAiEstimate(aiestimateId, userId);
         return ResponseEntity.noContent().build();
     }
 }

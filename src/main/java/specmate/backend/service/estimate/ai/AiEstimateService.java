@@ -28,8 +28,6 @@ public class AiEstimateService {
     private final ProductRepository productRepository;
     private final AiEstimateRepository aiEstimateRepository;
 
-    /* ------------------------- [생성 로직] ------------------------- */
-
     /** ChatService에서 호출하는 AI 견적 생성 메서드 */
     @Transactional
     public AiEstimate createAiEstimate(ChatRoom room, ChatMessage assistantMsg, EstimateResult result) {

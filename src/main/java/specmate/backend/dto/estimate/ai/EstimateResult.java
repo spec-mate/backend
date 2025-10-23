@@ -24,6 +24,8 @@ public class EstimateResult {
 
     private String notes;
 
+    private String text;
+
     @JsonProperty("another_input_text")
     private List<String> anotherInputText;
 

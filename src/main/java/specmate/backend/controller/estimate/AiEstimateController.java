@@ -14,19 +14,18 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import specmate.backend.dto.estimate.ai.AiEstimateRequest;
 import specmate.backend.dto.estimate.ai.AiEstimateResponse;
+import specmate.backend.entity.enums.UserAction;
 import specmate.backend.service.estimate.ai.AiEstimateService;
 
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/estimates")
+@RequestMapping("/api/aiestimates")
 @RequiredArgsConstructor
 @Tag(
         name = "AI Estimate API",
         description = """
-            AI가 생성한 컴퓨터 견적(AiEstimate) 및 구성된 상품(EstimateProduct)을 조회, 관리하는 API입니다.<br>
-            - 자동 저장: ChatService를 통해 AI가 생성한 견적이 자동으로 DB에 기록됩니다.<br>
-            - 수동 저장: 사용자가 MyPage 등에서 직접 AI 견적을 저장할 수 있습니다.
+            AI가 생성한 컴퓨터 견적(AiEstimate) 및 구성된 상품(EstimateProduct)을 조회, 관리하는 API
             """
 )
 public class AiEstimateController {
@@ -38,8 +37,7 @@ public class AiEstimateController {
             summary = "내 견적 목록 조회",
             description = """
                     로그인한 사용자의 모든 AI 견적 목록을 조회합니다.<br>
-                    각 견적에는 제목, 총 금액, 생성일, 상태(status: SUCCESS, SAVED)가 포함됩니다.<br>
-                    <b>자동 저장</b>된 견적과 <b>사용자 직접 저장</b>된 견적이 함께 표시됩니다.
+                    각 견적에는 제목, 총 금액, 생성일, 상태(status: SUCCESS, SAVED) 및 user_action이 포함됩니다.
                     """,
             security = {@SecurityRequirement(name = "bearerAuth")},
             responses = {
@@ -107,13 +105,44 @@ public class AiEstimateController {
                     @ApiResponse(responseCode = "401", description = "인증 실패 (토큰 없음 또는 만료)")
             }
     )
-    @GetMapping("/{estimateId}")
+    @GetMapping("/{aiestimateId}")
     public ResponseEntity<AiEstimateResponse> getEstimateDetail(
             @Parameter(description = "조회할 AI 견적의 ID", example = "8f1b2cda-4b6e-478c-bf54-b9eecbe9d02e")
-            @PathVariable String estimateId
+            @PathVariable String aiestimateId
     ) {
-        AiEstimateResponse response = aiEstimateService.getEstimateWithProducts(estimateId);
+        AiEstimateResponse response = aiEstimateService.getEstimateWithProducts(aiestimateId);
         return ResponseEntity.ok(response);
+    }
+
+    /** AI 견적 사용자 업데이트 */
+    @PatchMapping("/{aiestimateId}/action")
+    @Operation(
+            summary = "AI 견적 사용자 반응 업데이트",
+            description = """
+                    사용자가 견적에 대해 취한 행동을 업데이트합니다.<br>
+                    예를 들어, 다음과 같은 값으로 user_action을 변경할 수 있습니다:<br>
+                    - <b>SAVED</b>: 보관함에 저장<br>
+                    - <b>NOT_SAVED</b>: 저장하지 않음<br>
+                    - <b>RETRY</b>: 재추천 요청<br>
+                    """,
+            security = {@SecurityRequirement(name = "bearerAuth")},
+            responses = {
+                    @ApiResponse(responseCode = "200", description = "업데이트 성공",
+                            content = @Content(schema = @Schema(implementation = AiEstimateResponse.class))),
+                    @ApiResponse(responseCode = "400", description = "잘못된 요청 값"),
+                    @ApiResponse(responseCode = "401", description = "인증 실패"),
+                    @ApiResponse(responseCode = "403", description = "권한 없음"),
+                    @ApiResponse(responseCode = "404", description = "해당 견적을 찾을 수 없음")
+            }
+    )
+    public ResponseEntity<AiEstimateResponse> updateUserAction(
+            @Parameter(description = "AI 견적 ID") @PathVariable String aiestimateId,
+            @Parameter(description = "사용자 행동", example = "SAVED") @RequestParam UserAction action,
+            @Parameter(hidden = true) Authentication authentication
+    ) {
+        String userId = authentication.getName();
+        AiEstimateResponse updated = aiEstimateService.updateUserAction(aiestimateId, action, userId);
+        return ResponseEntity.ok(updated);
     }
 
     /** 견적 삭제 */
@@ -121,7 +150,7 @@ public class AiEstimateController {
             summary = "AI 견적 삭제",
             description = """
                     특정 AI 견적을 삭제합니다.<br>
-                    연결된 EstimateProduct(견적 내 제품) 데이터도 함께 삭제됩니다.<br>
+                    연결된 AiEstimateProduct(견적 내 AI 제품) 데이터도 함께 삭제됩니다.<br>
                     사용자는 자신의 견적만 삭제할 수 있습니다.
                     """,
             security = {@SecurityRequirement(name = "bearerAuth")},
@@ -132,14 +161,14 @@ public class AiEstimateController {
                     @ApiResponse(responseCode = "404", description = "해당 견적을 찾을 수 없음")
             }
     )
-    @DeleteMapping("/{estimateId}")
+    @DeleteMapping("/{aiestimateId}")
     public ResponseEntity<Void> deleteEstimate(
             @Parameter(description = "삭제할 AI 견적의 ID", example = "8f1b2cda-4b6e-478c-bf54-b9eecbe9d02e")
-            @PathVariable String estimateId,
+            @PathVariable String aiestimateId,
             @Parameter(hidden = true) Authentication authentication
     ) {
         String userId = authentication.getName();
-        aiEstimateService.deleteAiEstimate(estimateId, userId);
+        aiEstimateService.deleteAiEstimate(aiestimateId, userId);
         return ResponseEntity.noContent().build();
     }
 }

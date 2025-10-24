@@ -28,13 +28,13 @@ public class EstimateResultProcessor {
         Map<String, String> m = new HashMap<>();
         for (String k : List.of("case", "chassis", "tower")) m.put(k, "case");
         for (String k : List.of("cpu", "processor")) m.put(k, "cpu");
-        for (String k : List.of("vga","gpu","graphics","graphic_card","video_card")) m.put(k, "vga");
-        for (String k : List.of("ram","RAM","ram_memory","memory","dimm","ddr","ddr4","ddr5")) m.put(k, "RAM");
-        for (String k : List.of("ssd","nvme","m2","m_2","solid_state_drive","storage")) m.put(k, "ssd");
-        for (String k : List.of("power","psu","power_supply","smps")) m.put(k, "power");
-        for (String k : List.of("mainboard","motherboard","mb")) m.put(k, "mainboard");
-        for (String k : List.of("cooler","cooling","cpu_cooler")) m.put(k, "cooler");
-        for (String k : List.of("hdd","harddisk","hard_drive")) m.put(k, "hdd");
+        for (String k : List.of("vga", "gpu", "graphics", "graphic_card", "video_card")) m.put(k, "vga");
+        for (String k : List.of("ram", "RAM", "ram_memory", "memory", "dimm", "ddr", "ddr4", "ddr5")) m.put(k, "RAM");
+        for (String k : List.of("ssd", "nvme", "m2", "m_2", "solid_state_drive", "storage")) m.put(k, "ssd");
+        for (String k : List.of("power", "psu", "power_supply", "smps")) m.put(k, "power");
+        for (String k : List.of("mainboard", "motherboard", "mb")) m.put(k, "mainboard");
+        for (String k : List.of("cooler", "cooling", "cpu_cooler")) m.put(k, "cooler");
+        for (String k : List.of("hdd", "harddisk", "hard_drive")) m.put(k, "hdd");
         MAIN_KEY_NORMALIZER = m;
     }
 
@@ -44,10 +44,6 @@ public class EstimateResultProcessor {
         return MAIN_KEY_NORMALIZER.getOrDefault(s, s);
     }
 
-    public EstimateResult parse(String gptMessage) {
-        return parse(gptMessage, Collections.emptyMap());
-    }
-
     public EstimateResult parse(String gptMessage, Map<String, Product> fallbackMap) {
         try {
             String cleaned = extractJsonOnly(gptMessage);
@@ -55,8 +51,7 @@ public class EstimateResultProcessor {
             if (cleaned == null || cleaned.isBlank() || "{}".equals(cleaned)) {
                 log.debug("자연어 응답 감지 → EstimateResult.content 에 저장");
                 EstimateResult result = new EstimateResult();
-                result.setText(gptMessage); // 자연어 그대로 저장
-                result.setAllDefaults(true);
+                result.setText(gptMessage);
                 result.setProducts(List.of());
                 return result;
             }
@@ -81,60 +76,52 @@ public class EstimateResultProcessor {
 
             Map<String, Product> pick = new LinkedHashMap<>();
 
-            // main 필드
-            if (root.has("main") && root.get("main").isObject()) {
-                JsonNode main = root.get("main");
-                Iterator<String> it = main.fieldNames();
-                while (it.hasNext()) {
-                    String key = it.next();
-                    JsonNode item = main.get(key);
-                    Product p = new Product();
-                    p.setType(normalizeType(key));
-                    p.setName(getText(item, "name", "미선택"));
-                    p.setDescription(getText(item, "description", "선택된 부품 없음"));
-                    p.setPrice(cleanPrice(getText(item, "price", "0")));
-                    pick.put(p.getType(), p);
-                }
-            }
-
             // components / products 배열
-            JsonNode listNode = null;
-            if (root.has("components")) listNode = root.get("components");
-            else if (root.has("products")) listNode = root.get("products");
+            JsonNode listNode = root.has("components") ? root.get("components") :
+                    root.has("products") ? root.get("products") : null;
 
             if (listNode != null && listNode.isArray()) {
                 for (JsonNode node : listNode) {
                     Product p = new Product();
                     p.setId(getText(node, "id", null));
+
                     String type = getText(node, "type",
                             getText(node, "category",
                                     getText(node, "product_type", "unknown")));
                     p.setType(normalizeType(type));
-                    p.setName(getText(node, "name", "미선택"));
+
+                    p.setAiName(getText(node, "matched_name", getText(node, "ai_name", "미선택")));
+
+                    p.setMatchedName(null);
+
                     p.setDescription(getText(node, "description", "선택된 부품 없음"));
                     p.setPrice(cleanPrice(getText(node, "price", "0")));
+
                     pick.put(p.getType(), p);
                 }
             }
 
-            // fallbackMap 적용
+            // fallbackMap 적용 (DB matched_name 보정)
             if (fallbackMap != null && !fallbackMap.isEmpty()) {
                 for (var entry : fallbackMap.entrySet()) {
                     String type = normalizeType(entry.getKey());
                     Product fb = entry.getValue();
                     Product exist = pick.get(type);
-                    if (exist == null || "미선택".equalsIgnoreCase(exist.getName())) {
+
+                    if (exist == null) {
                         pick.put(type, fb);
+                    } else if ("미선택".equalsIgnoreCase(exist.getMatchedName()) && fb.getMatchedName() != null) {
+                        exist.setMatchedName(fb.getMatchedName());
                     }
                 }
             }
 
-            // 9개 카테고리 정렬
+            // 카테고리 정렬
             List<Product> finalList = new ArrayList<>();
             for (String cat : SERIES_ORDER) {
                 Product exist = pick.get(cat);
                 if (exist != null) {
-                    if (isBlank(exist.getName())) exist.setName("미선택");
+                    if (isBlank(exist.getMatchedName())) exist.setMatchedName("미선택");
                     if (isBlank(exist.getPrice())) exist.setPrice("0");
                     finalList.add(exist);
                 } else {
@@ -162,7 +149,6 @@ public class EstimateResultProcessor {
             fallback.setTotalPrice("0");
             fallback.setProducts(List.of());
             fallback.setAnotherInputText(List.of());
-            fallback.setAllDefaults(true);
             return fallback;
         }
     }
@@ -197,16 +183,19 @@ public class EstimateResultProcessor {
         return getText(node, key, "");
     }
 
-    private boolean isBlank(String s) { return s == null || s.trim().isEmpty(); }
+    private boolean isBlank(String s) {
+        return s == null || s.trim().isEmpty();
+    }
 
     private Product defaultProduct(String type) {
         Product p = new Product();
         p.setType(type);
-        p.setName("미선택");
+        p.setMatchedName("미선택");
         p.setDescription("선택된 부품 없음");
         p.setPrice("0");
         return p;
     }
+
 
     private String cleanPrice(String s) {
         if (s == null) return "0";
@@ -219,7 +208,10 @@ public class EstimateResultProcessor {
     }
 
     private long parseLong(String s) {
-        try { return Long.parseLong(isBlank(s) ? "0" : s); }
-        catch (Exception e) { return 0L; }
+        try {
+            return Long.parseLong(isBlank(s) ? "0" : s);
+        } catch (Exception e) {
+            return 0L;
+        }
     }
 }

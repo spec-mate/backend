@@ -28,8 +28,14 @@ public class EstimateProduct {
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
-    @Column(nullable = false)
+    @Column(name = "ai_name", nullable = false)
     private String aiName; // AI가 인식한 부품명
+
+    @Column(name = "matched_name")
+    private String matchedName;
+
+    @Column(name = "similarity_score")
+    private Double similarityScore;
 
     @Column(nullable = false)
     private Boolean matched = false; // 매핑 성공 여부

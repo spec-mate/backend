@@ -1,7 +1,7 @@
 package specmate.backend.service.chat;
 
-import lombok.RequiredArgsConstructor;
 import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import specmate.backend.dto.estimate.ai.EstimateResult;
 import specmate.backend.entity.Product;
@@ -15,76 +15,137 @@ import java.util.stream.Collectors;
 public class ProductRagService {
 
     private final ProductSearchService productSearchService;
-    private static final int SEARCH_LIMIT_PER_CATEGORY = 5;
+    private static final int SEARCH_LIMIT_PER_CATEGORY = 10;
 
-    public RagContext buildRagContext(String query) {
-        List<Product> products = productSearchService.searchSimilarProductsByCategory(query, SEARCH_LIMIT_PER_CATEGORY);
-        String componentText = buildComponentText(products);
+    /**
+     * ① 사용자 입력 기반 RAG 컨텍스트 (GPT 호출 전)
+     * - 사용자의 자연어 입력(userInput)을 기반으로 유사 제품 검색
+     * - GPT에게 전달할 컨텍스트를 구성
+     */
+    public RagContext buildRagContext(String userInput) {
+        List<Product> products = productSearchService.searchSimilarProductsByCategory(userInput, SEARCH_LIMIT_PER_CATEGORY);
 
+        // 컨텍스트 텍스트 구성
+        String componentText = products.stream()
+                .map(p -> String.format("[%s] %s - %s원 (%s)",
+                        safe(p.getType()),
+                        safe(p.getName()),
+                        extractPrice(p),
+                        safe(p.getManufacturer())))
+                .collect(Collectors.joining("\n"));
+
+        // Fallback DTO 맵 구성
         Map<String, EstimateResult.Product> dtoFallbackMap = products.stream()
                 .filter(p -> p.getType() != null)
                 .collect(Collectors.toMap(
                         p -> p.getType().toLowerCase(Locale.ROOT),
-                        p -> {
-                            EstimateResult.Product dto = new EstimateResult.Product();
-                            dto.setId(p.getId() != null ? p.getId().toString() : "");
-                            dto.setType(p.getType());
-                            dto.setName(p.getName());
-                            dto.setPrice(
-                                    p.getLowestPrice() != null
-                                            ? p.getLowestPrice().getOrDefault("price", "0").toString()
-                                            : "0"
-                            );
-                            return dto;
-                        },
+                        this::toEstimateProductDto,
                         (a, b) -> a
                 ));
 
-        String instructions = componentText.isBlank()
-                ? "[검색된 후보 부품 없음]"
-                : "[검색된 후보 부품 목록]\n" + componentText;
-
-        return new RagContext(products, dtoFallbackMap, instructions);
+        return new RagContext(componentText, dtoFallbackMap);
     }
 
-    private String buildComponentText(List<Product> products) {
-        StringBuilder sb = new StringBuilder("[\n");
-        for (int i = 0; i < products.size(); i++) {
-            Product p = products.get(i);
-            String price = p.getLowestPrice() != null
-                    ? p.getLowestPrice().getOrDefault("price", "0").toString()
-                    : "0";
-            sb.append(String.format(
-                    "  { \"id\": \"%s\", \"type\": \"%s\", \"name\": \"%s\", \"price\": \"%s\" }",
-                    p.getId() != null ? p.getId().toString() : "",
-                    escapeJson(p.getType()),
-                    escapeJson(p.getName()),
-                    price
-            ));
-            if (i < products.size() - 1) sb.append(",\n");
+    /**
+     * ② GPT가 생성한 EstimateResult 기반 RAG 컨텍스트 (후처리 매칭)
+     * - GPT의 ai_name / description을 기반으로 DB 제품 매칭
+     * - 중복된 matched_name은 1회만 사용
+     */
+    public RagContext buildRagContext(EstimateResult estimateResult) {
+        Map<String, EstimateResult.Product> dtoFallbackMap = new HashMap<>();
+        StringBuilder sb = new StringBuilder();
+        Set<String> usedMatchedNames = new HashSet<>();
+
+        for (EstimateResult.Product comp : estimateResult.getProducts()) {
+            // 검색용 query 생성 (aiName 우선, 없으면 description)
+            String query = comp.getAiName();
+            if (query == null || query.isBlank()) {
+                query = comp.getDescription();
+            }
+
+            // 카테고리 기반 유사도 검색
+            List<Product> products = productSearchService.searchSimilarProductsByCategory(query, SEARCH_LIMIT_PER_CATEGORY);
+
+            // 중복 matched_name 방지
+            Product top = null;
+            for (Product p : products) {
+                if (!usedMatchedNames.contains(p.getName())) {
+                    top = p;
+                    usedMatchedNames.add(p.getName());
+                    break;
+                }
+            }
+
+            EstimateResult.Product matchedDto;
+            if (top != null) {
+                matchedDto = toEstimateProductDto(top);
+            } else {
+                matchedDto = EstimateResult.Product.builder()
+                        .type(comp.getType())
+                        .matchedName("미선택")
+                        .price("0")
+                        .description(comp.getDescription())
+                        .build();
+            }
+
+            // ai_name도 그대로 보존
+            matchedDto.setAiName(comp.getAiName());
+
+            dtoFallbackMap.put(comp.getType().toLowerCase(Locale.ROOT), matchedDto);
+
+            // GPT 컨텍스트용 텍스트 누적
+            sb.append(String.format("[%s] %s ↔ %s - %s원 (%s)\n",
+                    safe(matchedDto.getType()),
+                    safe(matchedDto.getAiName()),
+                    safe(matchedDto.getMatchedName()),
+                    safe(matchedDto.getPrice()),
+                    safe(matchedDto.getDescription())));
         }
-        sb.append("\n]");
-        return sb.toString();
+
+        return new RagContext(sb.toString().trim(), dtoFallbackMap);
     }
 
-    /** 따옴표나 개행이 포함된 문자열을 안전하게 escape 처리 */
-    private String escapeJson(String value) {
-        if (value == null) return "";
-        return value.replace("\"", "\\\"").replace("\n", " ").replace("\r", " ");
+    /**
+     * Product → EstimateResult.Product 변환
+     */
+    private EstimateResult.Product toEstimateProductDto(Product p) {
+        return EstimateResult.Product.builder()
+                .id(String.valueOf(p.getId()))
+                .type(safe(p.getType()))
+                .matchedName(safe(p.getName()))
+                .price(extractPrice(p))
+                .description(safe(p.getManufacturer()))
+                .build();
+    }
+
+    /**
+     * DB의 lowest_price → price 변환
+     */
+    private String extractPrice(Product p) {
+        try {
+            if (p.getLowestPrice() != null && p.getLowestPrice().get("price") != null) {
+                Object price = p.getLowestPrice().get("price");
+                return String.valueOf(price).replaceAll("[^0-9]", "");
+            }
+        } catch (Exception ignored) {}
+        return "0";
+    }
+
+    /**
+     * null-safe 헬퍼
+     */
+    private String safe(String value) {
+        return value != null ? value : "";
     }
 
     @Getter
+    @RequiredArgsConstructor
     public static class RagContext {
-        private final List<Product> products;
+        private final String componentText;
         private final Map<String, EstimateResult.Product> dtoFallbackMap;
-        private final String instructions;
 
-        public RagContext(List<Product> products,
-                          Map<String, EstimateResult.Product> dtoFallbackMap,
-                          String instructions) {
-            this.products = products;
-            this.dtoFallbackMap = dtoFallbackMap;
-            this.instructions = instructions;
+        public String getInstructions() {
+            return componentText;
         }
     }
 }

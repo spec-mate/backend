@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import specmate.backend.dto.estimate.ai.EstimateResponse;
 import specmate.backend.dto.estimate.ai.EstimateResult;
 import specmate.backend.dto.chat.ChatMessageRequest;
 import specmate.backend.dto.chat.ChatMessageResponse;
@@ -14,6 +15,7 @@ import specmate.backend.dto.chatroom.ChatRoomRequest;
 import specmate.backend.dto.chatroom.ChatRoomResponse;
 import specmate.backend.entity.ChatMessage;
 import specmate.backend.processor.EstimateResultProcessor;
+import specmate.backend.repository.chat.AiEstimateRepository;
 import specmate.backend.service.chat.ChatService;
 import specmate.backend.service.chat.ChatRoomService;
 import specmate.backend.service.chat.ChatMessageService;
@@ -31,6 +33,7 @@ public class ChatController {
     private final ChatRoomService chatRoomService;     // 채팅방 CRUD
     private final ChatMessageService chatMessageService; // 메시지 조회
     private final EstimateResultProcessor estimateResultProcessor;
+    private final AiEstimateRepository aiEstimateRepository;
 
     /** 채팅방 생성 */
     @Operation(summary = "채팅방 생성", description = "새로운 채팅방을 생성합니다.",
@@ -49,13 +52,15 @@ public class ChatController {
     @Operation(summary = "메시지 전송", description = "사용자의 메시지를 받아 GPT 견적 응답을 생성합니다.",
             security = {@SecurityRequirement(name = "bearerAuth")})
     @PostMapping("/rooms/{roomId}/messages")
-    public ResponseEntity<EstimateResult> sendMessage(
+    public ResponseEntity<EstimateResponse> sendMessage(
             @PathVariable String roomId,
             @RequestBody ChatMessageRequest request
     ) throws IOException {
-        ChatMessage assistantMsg = chatService.handleUserMessage(roomId, request.getPrompt());
-        EstimateResult result = estimateResultProcessor.parse(assistantMsg.getContent());
-        return ResponseEntity.ok(result);
+        // ChatService에서 EstimateResponse를 바로 받음
+        EstimateResponse response = chatService.handleUserMessage(roomId, request.getPrompt());
+
+        // 프론트에 EstimateResponse 반환
+        return ResponseEntity.ok(response);
     }
 
     /** 특정 채팅방의 메시지 목록 조회 */

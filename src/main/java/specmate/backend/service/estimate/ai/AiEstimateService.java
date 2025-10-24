@@ -4,11 +4,9 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import specmate.backend.dto.estimate.ai.AiEstimateRequest;
 import specmate.backend.dto.estimate.ai.AiEstimateResponse;
 import specmate.backend.dto.estimate.ai.EstimateResult;
 import specmate.backend.entity.*;
-import specmate.backend.entity.enums.SenderType;
 import specmate.backend.entity.enums.UserAction;
 import specmate.backend.repository.chat.AiEstimateRepository;
 import specmate.backend.repository.chat.ChatMessageRepository;
@@ -16,7 +14,7 @@ import specmate.backend.repository.chat.EstimateProductRepository;
 import specmate.backend.repository.product.ProductRepository;
 import specmate.backend.repository.user.UserRepository;
 import specmate.backend.repository.chat.ChatRoomRepository;
-import specmate.backend.entity.enums.MessageStatus;
+import specmate.backend.service.product.ProductSearchService;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,9 +29,7 @@ public class AiEstimateService {
     private final EstimateProductRepository estimateProductRepository;
     private final ProductRepository productRepository;
     private final AiEstimateRepository aiEstimateRepository;
-    private final UserRepository userRepository;
-    private final ChatRoomRepository chatRoomRepository;
-    private final ChatMessageRepository chatMessageRepository;
+    private final ProductSearchService productSearchService;
 
     /** AI가 자동 생성한 견적 저장 */
     @Transactional
@@ -65,47 +61,67 @@ public class AiEstimateService {
         if (result == null || result.getProducts() == null) return;
 
         for (EstimateResult.Product comp : result.getProducts()) {
-            Product matchedProduct = null;
+            if (comp.getMatchedName() == null || comp.getMatchedName().isBlank()) continue;
 
-            // 1) ID 매칭
-            if (comp.getId() != null && !comp.getId().isBlank()) {
-                try {
-                    Integer pid = Integer.parseInt(comp.getId());
-                    matchedProduct = productRepository.findById(pid).orElse(null);
-                } catch (NumberFormatException ignored) {}
+            // 임베딩 기반 의미 검색 (GPT가 의미 판단을 이미 수행했으므로 단일 검색)
+            Optional<Product> optionalProduct =
+                    productSearchService.findMostSimilarProduct(comp.getMatchedName(), comp.getType());
+
+            if (optionalProduct.isPresent()) {
+                Product matchedProduct = optionalProduct.get();
+                double similarity = productSearchService.getLastSimilarityScore();
+
+                // GPT 의미 매칭에 맞게 임계값 완화 (0.75 → 0.5)
+                if (similarity >= 0.5) {
+                    log.info("AI 의미 매칭 성공: '{}' → '{}' (유사도={})",
+                            comp.getMatchedName(), matchedProduct.getName(), String.format("%.2f", similarity));
+
+                    saveEstimateProduct(aiEstimate, matchedProduct, comp);
+                } else {
+                    log.debug("유사도 낮음 ({}) → '{}' 매칭 보류",
+                            String.format("%.2f", similarity), comp.getMatchedName());
+                }
+            } else {
+                // 매칭 실패 시 GPT의 판단 보존
+                log.warn("GPT 의미 매칭 실패: '{}'", comp.getMatchedName());
+                EstimateProduct entity = EstimateProduct.builder()
+                        .aiEstimate(aiEstimate)
+                        .aiName(comp.getMatchedName())
+                        .matched(false)
+                        .quantity(1)
+                        .unitPrice(parsePrice(comp.getPrice()))
+                        .createdAt(LocalDateTime.now())
+                        .build();
+                estimateProductRepository.save(entity);
             }
-
-            // 2) 이름 기반 매칭
-            if (matchedProduct == null && comp.getName() != null) {
-                List<Product> similar = productRepository.findSimilarByName(comp.getName());
-                if (!similar.isEmpty()) matchedProduct = similar.get(0);
-            }
-
-            // 3) Fuzzy 매칭
-            if (matchedProduct == null && comp.getName() != null) {
-                matchedProduct = productRepository.findMostSimilar(comp.getName()).orElse(null);
-            }
-
-            if (matchedProduct == null) {
-                log.warn("AI가 추천한 '{}' 제품을 DB에서 찾지 못했습니다.", comp.getName());
-                continue;
-            }
-
-            log.info("매칭 성공: AI '{}' → DB '{}'", comp.getName(), matchedProduct.getName());
-
-            EstimateProduct entity = EstimateProduct.builder()
-                    .aiEstimate(aiEstimate)
-                    .product(matchedProduct)
-                    .aiName(comp.getName())
-                    .matched(true)
-                    .quantity(1)
-                    .unitPrice(parsePrice(comp.getPrice()))
-                    .createdAt(LocalDateTime.now())
-                    .build();
-
-            estimateProductRepository.save(entity);
         }
     }
+
+    private void saveEstimateProduct(AiEstimate aiEstimate, Product product, EstimateResult.Product comp) {
+
+
+        // GPT가 제안한 이름 (AI 이름)
+        String aiSuggestedName = comp.getMatchedName();
+
+        // DB 매칭된 실제 이름 (DB 검색 결과)
+        String matchedProductName = product != null ? product.getName() : null;
+
+        EstimateProduct entity = EstimateProduct.builder()
+                .aiEstimate(aiEstimate)
+                .product(product)
+                .aiName(aiSuggestedName)
+                .matchedName(matchedProductName)
+                .similarityScore(productSearchService.getLastSimilarityScore())
+                .matched(product != null)
+                .quantity(1)
+                .unitPrice(parsePrice(comp.getPrice()))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        estimateProductRepository.save(entity);
+    }
+
+
 
     /** 사용자 행동(user_action) 업데이트 */
     @Transactional

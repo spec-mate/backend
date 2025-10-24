@@ -16,20 +16,11 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
 
     Page<Product> findByType(String type, Pageable pageable);
 
+    List<Product> findByNameContainingIgnoreCase(String name);
 
     // 이름 기반 유사 검색
     @Query("SELECT p FROM Product p WHERE LOWER(p.name) LIKE LOWER(CONCAT('%', :namePart, '%'))")
     List<Product> findSimilarByName(@Param("namePart") String namePart);
-
-
-    // fuzzystrmatch 기반 유사도 검색
-    @Query(value = """
-        SELECT * 
-        FROM products 
-        ORDER BY levenshtein(lower(name), lower(:input)) ASC
-        LIMIT 1
-    """, nativeQuery = true)
-    Optional<Product> findMostSimilar(@Param("input") String input);
 
     @Query(value = """
         SELECT * 

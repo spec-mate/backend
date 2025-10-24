@@ -1,6 +1,7 @@
 package specmate.backend.dto.estimate.ai;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -33,11 +34,17 @@ public class AiEstimateResponse {
     @AllArgsConstructor
     public static class ProductResponse {
         private String id;
-        private String name;
+        private String productName;
+        private String aiName;
         private String type;
+
+        @JsonProperty("matched_name")
+        private String matchedName;
+
         private Integer quantity;
         private Integer unitPrice;
         private Boolean matched;
+        private String image;
     }
 
     /** Entity → DTO 변환 (제품 제외) */
@@ -53,7 +60,7 @@ public class AiEstimateResponse {
                 .build();
     }
 
-    /** Entity + Product 리스트 → DTO 변환 (엔터티는 그대로, 연관 관계 없이 매핑) */
+    /** Entity + Product 리스트 → DTO 변환 */
     public static AiEstimateResponse fromEntityWithProducts(AiEstimate entity, List<EstimateProduct> products) {
         return AiEstimateResponse.builder()
                 .id(entity.getId())
@@ -74,22 +81,16 @@ public class AiEstimateResponse {
     private static ProductResponse toProductResponse(EstimateProduct ep) {
         return ProductResponse.builder()
                 .id(ep.getProduct() != null ? ep.getProduct().getId().toString() : null)
-                .name(ep.getAiName())
+                .productName(ep.getProduct() != null ? ep.getProduct().getName() : null)
+                .aiName(ep.getAiName())
+                .matchedName(ep.getMatchedName())
                 .type(ep.getProduct() != null ? ep.getProduct().getType() : null)
                 .quantity(ep.getQuantity())
                 .unitPrice(ep.getUnitPrice())
                 .matched(ep.getMatched())
+                .image(ep.getProduct() != null ? ep.getProduct().getImage() : null)
                 .build();
     }
 
-    public String toJson() {
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-             mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-             mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-            return mapper.writeValueAsString(this);
-        } catch (JsonProcessingException e) {
-            throw new RuntimeException("AiEstimateResponse 직렬화 실패", e);
-        }
-    }
+
 }

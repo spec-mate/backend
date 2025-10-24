@@ -4,7 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import specmate.backend.dto.estimate.ai.AiEstimateResponse;
+import specmate.backend.dto.estimate.ai.EstimateResponse;
 import specmate.backend.dto.estimate.ai.EstimateResult;
 import specmate.backend.entity.AiEstimate;
 import specmate.backend.entity.ChatMessage;
@@ -14,6 +14,8 @@ import specmate.backend.repository.chat.AiEstimateRepository;
 import specmate.backend.service.estimate.ai.AiEstimateService;
 
 import java.util.Arrays;
+import java.util.Locale;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -30,63 +32,106 @@ public class ChatService {
 
     /** 사용자 입력을 처리하고 GPT 견적 결과를 저장 */
     @Transactional
-    public ChatMessage handleUserMessage(String roomId, String userInput) {
-
-        // 채팅방 Thread 보장
+    public EstimateResponse handleUserMessage(String roomId, String userInput) {
+        // 1️⃣ Thread 보장
         ChatRoom room = chatThreadService.ensureThread(roomId);
 
-        // 사용자 메시지 저장
+        // 2️⃣ 사용자 메시지 저장
         chatMessageService.saveUserMessage(room, userInput);
 
-        // RAG 컨텍스트 구성
+        // 3️⃣ RAG 컨텍스트 (userInput 기반)
         var ragContext = productRagService.buildRagContext(userInput);
 
-        // 이전 견적 조회
+        // 4️⃣ 최근 견적 조회
         AiEstimate latestEstimate = aiEstimateRepository
                 .findTopByChatRoomOrderByCreatedAtDesc(room)
                 .orElse(null);
 
-        // 프롬프트 구성
-        String enhancedPrompt = buildPrompt(userInput, latestEstimate, ragContext);
-
-        // GPT 호출
+        // 5️⃣ GPT 호출
         String reply;
         try {
-            reply = assistantRunner.run(room.getThread(), userInput, enhancedPrompt);
+            reply = assistantRunner.run(
+                    room.getThread(),
+                    userInput,
+                    ragContext.getInstructions()
+            );
         } catch (Exception e) {
             log.error("GPT 호출 중 오류 발생", e);
             reply = "(GPT 응답 생성 중 오류가 발생했습니다.)";
         }
 
-        // 빈 응답 처리
         if (reply == null || reply.isBlank()) {
             log.warn("GPT 응답이 비어 있음. 기본값으로 대체합니다.");
             reply = "(응답을 생성하지 못했습니다.)";
         }
 
-        // GPT 응답 메시지 저장
+        // 6️⃣ GPT 응답 메시지 저장
         ChatMessage assistantMsg = chatMessageService.saveAssistantMessage(room, reply);
 
-        // GPT 응답 파싱 (EstimateResult 변환)
-        EstimateResult result = estimateResultProcessor.parse(reply, ragContext.getDtoFallbackMap());
+        // 7️⃣ GPT 응답 파싱 (EstimateResult 생성: ai_name 포함)
+        EstimateResult estimateResult = estimateResultProcessor.parse(reply, ragContext.getDtoFallbackMap());
 
-        // 모두 미선택이면 설명 모드로 처리
-        if (result != null && result.isAllDefaults()) {
-            log.info("모든 부품이 '미선택' 상태 → 비견적성 설명 요청으로 판단합니다.");
-            return assistantMsg;
+        if (estimateResult == null || estimateResult.isAllDefaults()) {
+            log.info("비견적성 요청으로 판단 → JSON 응답 대신 일반 텍스트 응답 반환");
+            return EstimateResponse.builder()
+                    .text(reply)
+                    .notes("비견적성 응답")
+                    .build();
         }
 
-        // 견적 모드 분기
+        // 8️⃣ DB 매칭 수행 (matched_name 채우기)
+        var refinedRagContext = productRagService.buildRagContext(estimateResult);
+        mergeMatchedNames(estimateResult, refinedRagContext.getDtoFallbackMap());
+
+        // 9️⃣ 견적 저장
         if (latestEstimate == null) {
-            // 신규 견적 생성 모드
-            return handleNewEstimate(room, assistantMsg, result);
+            handleNewEstimate(room, assistantMsg, estimateResult);
         } else if (isReconfigurationRequest(userInput)) {
-            // 재구성 모드
-            return handleReconfiguration(room, assistantMsg, result);
+            handleReconfiguration(room, assistantMsg, estimateResult);
         } else {
-            // 설명 모드 (JSON 생성 금지)
-            log.info("기존 견적이 존재하므로 설명 모드로 동작합니다. 추가 견적은 생성하지 않습니다.");
-            return assistantMsg;
+            log.info("기존 견적이 존재 → 설명 모드로 동작");
+        }
+
+        // 변환: 내부 EstimateResult → 클라이언트 응답용 EstimateResponse
+        return toResponse(estimateResult);
+    }
+
+    private EstimateResponse toResponse(EstimateResult result) {
+        if (result == null) return null;
+
+        return EstimateResponse.builder()
+                .aiEstimateId(result.getAiEstimateId())
+                .buildName(result.getBuildName())
+                .buildDescription(result.getBuildDescription())
+                .totalPrice(result.getTotalPrice())
+                .notes(result.getNotes())
+                .text(result.getText())
+                .anotherInputText(result.getAnotherInputText())
+                .components(result.getProducts().stream()
+                        .map(p -> EstimateResponse.ComponentResponse.builder()
+                                .type(p.getType())
+                                .matchedName(p.getMatchedName())
+                                .price(p.getPrice())
+                                .description(p.getDescription())
+                                .build())
+                        .toList())
+                .build();
+    }
+
+
+    /** GPT의 ai_name과 DB matched_name 병합 */
+    private void mergeMatchedNames(EstimateResult estimateResult,
+                                   Map<String, EstimateResult.Product> fallbackMap) {
+        if (estimateResult == null || estimateResult.getProducts() == null) return;
+
+        for (EstimateResult.Product comp : estimateResult.getProducts()) {
+            String key = comp.getType() != null ? comp.getType().toLowerCase(Locale.ROOT) : null;
+            if (key == null) continue;
+
+            EstimateResult.Product matched = fallbackMap.get(key);
+            if (matched != null) {
+                comp.setMatchedName(matched.getMatchedName());
+            }
         }
     }
 
@@ -118,38 +163,6 @@ public class ChatService {
 
         log.info("견적 재구성 완료: roomId={}, newEstimateId={}", room.getId(), reconfigured.getId());
         return assistantMsg;
-    }
-
-    /** 프롬프트 생성 로직 */
-    private String buildPrompt(String userInput, AiEstimate latestEstimate, ProductRagService.RagContext ragContext) {
-        String prompt = ragContext.getInstructions();
-
-        if (latestEstimate != null) {
-            try {
-                AiEstimateResponse latestResponse = aiEstimateService.getEstimateWithProducts(latestEstimate.getId());
-                prompt += "\n\n이전에 생성된 PC 견적(JSON)은 다음과 같습니다:\n";
-                prompt += latestResponse.toJson();
-
-                if (isReconfigurationRequest(userInput)) {
-                    prompt += """
-                    
-                    \n\n사용자의 입력은 재구성 요청입니다.
-                    위 견적을 기반으로 조건에 맞게 일부 부품만 변경하여 새로운 JSON 견적을 생성하십시오.
-                    """;
-                } else {
-                    prompt += """
-                    
-                    \n\n위 견적을 기반으로 사용자의 질문이
-                    소음, 발열, 전력, 업그레이드, 온도, 쿨링 등에 관한 경우,
-                    절대 JSON을 다시 출력하지 말고 자연어 문장으로만 응답하십시오.
-                    """;
-                }
-            } catch (Exception e) {
-                log.warn("이전 견적 JSON 변환 중 오류 발생: {}", e.getMessage());
-            }
-        }
-
-        return prompt;
     }
 
     /** 재구성 요청 여부 판단 */

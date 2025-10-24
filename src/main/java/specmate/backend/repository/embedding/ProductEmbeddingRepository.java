@@ -94,44 +94,4 @@ public interface ProductEmbeddingRepository extends JpaRepository<ProductEmbeddi
             @Param("queryVector") String queryVector,
             @Param("limit") int limit
     );
-
-    /** normalized_type 기준 최저가 1개 조회 (비선택 부품 자동 완성용) */
-    @Query(value = """
-        SELECT
-            id,
-            product_id,
-            vector,
-            content,
-            created_at,
-            normalized_type,
-            price_numeric
-        FROM product_embeddings
-        WHERE normalized_type = :type
-        ORDER BY price_numeric ASC
-        LIMIT 1
-        """, nativeQuery = true)
-    Optional<ProductEmbedding> findCheapestByType(@Param("type") String type);
-
-    /** normalized_type 기준 상위 N개 최저가 목록 조회 */
-    @Query(value = """
-        SELECT
-            id,
-            product_id,
-            vector,
-            content,
-            created_at,
-            normalized_type,
-            price_numeric
-        FROM product_embeddings
-        WHERE normalized_type = :type
-        ORDER BY price_numeric ASC
-        LIMIT :limit
-        """, nativeQuery = true)
-    List<ProductEmbedding> findTopCheapestByType(@Param("type") String type, @Param("limit") int limit);
-
-    /** 특정 productId 기준 삭제 */
-    @Modifying
-    @Transactional
-    @Query(value = "DELETE FROM product_embeddings WHERE product_id = :productId", nativeQuery = true)
-    void deleteByProductId(@Param("productId") Integer productId);
 }

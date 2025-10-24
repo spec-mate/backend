@@ -33,21 +33,21 @@ public class ChatService {
     /** 사용자 입력을 처리하고 GPT 견적 결과를 저장 */
     @Transactional
     public EstimateResponse handleUserMessage(String roomId, String userInput) {
-        // 1️⃣ Thread 보장
+        // Thread 보장
         ChatRoom room = chatThreadService.ensureThread(roomId);
 
-        // 2️⃣ 사용자 메시지 저장
+        // 사용자 메시지 저장
         chatMessageService.saveUserMessage(room, userInput);
 
-        // 3️⃣ RAG 컨텍스트 (userInput 기반)
+        // RAG 컨텍스트 (userInput 기반)
         var ragContext = productRagService.buildRagContext(userInput);
 
-        // 4️⃣ 최근 견적 조회
+        // 최근 견적 조회
         AiEstimate latestEstimate = aiEstimateRepository
                 .findTopByChatRoomOrderByCreatedAtDesc(room)
                 .orElse(null);
 
-        // 5️⃣ GPT 호출
+        // GPT 호출
         String reply;
         try {
             reply = assistantRunner.run(
@@ -65,10 +65,10 @@ public class ChatService {
             reply = "(응답을 생성하지 못했습니다.)";
         }
 
-        // 6️⃣ GPT 응답 메시지 저장
+        // GPT 응답 메시지 저장
         ChatMessage assistantMsg = chatMessageService.saveAssistantMessage(room, reply);
 
-        // 7️⃣ GPT 응답 파싱 (EstimateResult 생성: ai_name 포함)
+        // GPT 응답 파싱 (EstimateResult 생성: ai_name 포함)
         EstimateResult estimateResult = estimateResultProcessor.parse(reply, ragContext.getDtoFallbackMap());
 
         if (estimateResult == null || estimateResult.isAllDefaults()) {
@@ -79,11 +79,11 @@ public class ChatService {
                     .build();
         }
 
-        // 8️⃣ DB 매칭 수행 (matched_name 채우기)
+        // DB 매칭 수행 (matched_name 채우기)
         var refinedRagContext = productRagService.buildRagContext(estimateResult);
         mergeMatchedNames(estimateResult, refinedRagContext.getDtoFallbackMap());
 
-        // 9️⃣ 견적 저장
+        // 견적 저장
         if (latestEstimate == null) {
             handleNewEstimate(room, assistantMsg, estimateResult);
         } else if (isReconfigurationRequest(userInput)) {
@@ -92,7 +92,6 @@ public class ChatService {
             log.info("기존 견적이 존재 → 설명 모드로 동작");
         }
 
-        // 변환: 내부 EstimateResult → 클라이언트 응답용 EstimateResponse
         return toResponse(estimateResult);
     }
 
@@ -117,7 +116,6 @@ public class ChatService {
                         .toList())
                 .build();
     }
-
 
     /** GPT의 ai_name과 DB matched_name 병합 */
     private void mergeMatchedNames(EstimateResult estimateResult,

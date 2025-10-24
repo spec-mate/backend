@@ -17,11 +17,7 @@ public class ProductRagService {
     private final ProductSearchService productSearchService;
     private static final int SEARCH_LIMIT_PER_CATEGORY = 10;
 
-    /**
-     * ① 사용자 입력 기반 RAG 컨텍스트 (GPT 호출 전)
-     * - 사용자의 자연어 입력(userInput)을 기반으로 유사 제품 검색
-     * - GPT에게 전달할 컨텍스트를 구성
-     */
+    /** 사용자 입력 기반 RAG 컨텍스트 (GPT 호출 전) 사용자의 자연어 입력(userInput)을 기반으로 유사 제품 검색 GPT에게 전달할 컨텍스트를 구성 */
     public RagContext buildRagContext(String userInput) {
         List<Product> products = productSearchService.searchSimilarProductsByCategory(userInput, SEARCH_LIMIT_PER_CATEGORY);
 
@@ -46,11 +42,7 @@ public class ProductRagService {
         return new RagContext(componentText, dtoFallbackMap);
     }
 
-    /**
-     * ② GPT가 생성한 EstimateResult 기반 RAG 컨텍스트 (후처리 매칭)
-     * - GPT의 ai_name / description을 기반으로 DB 제품 매칭
-     * - 중복된 matched_name은 1회만 사용
-     */
+    /** GPT가 생성한 EstimateResult 기반 RAG 컨텍스트 (후처리 매칭) GPT의 ai_name / description을 기반으로 DB 제품 매칭 중복된 matched_name은 1회만 사용 */
     public RagContext buildRagContext(EstimateResult estimateResult) {
         Map<String, EstimateResult.Product> dtoFallbackMap = new HashMap<>();
         StringBuilder sb = new StringBuilder();
@@ -105,9 +97,7 @@ public class ProductRagService {
         return new RagContext(sb.toString().trim(), dtoFallbackMap);
     }
 
-    /**
-     * Product → EstimateResult.Product 변환
-     */
+    /** Product → EstimateResult.Product 변환 */
     private EstimateResult.Product toEstimateProductDto(Product p) {
         return EstimateResult.Product.builder()
                 .id(String.valueOf(p.getId()))
@@ -118,9 +108,7 @@ public class ProductRagService {
                 .build();
     }
 
-    /**
-     * DB의 lowest_price → price 변환
-     */
+    /** DB의 lowest_price → price 변환 */
     private String extractPrice(Product p) {
         try {
             if (p.getLowestPrice() != null && p.getLowestPrice().get("price") != null) {
@@ -131,9 +119,7 @@ public class ProductRagService {
         return "0";
     }
 
-    /**
-     * null-safe 헬퍼
-     */
+    /** null-safe 헬퍼 */
     private String safe(String value) {
         return value != null ? value : "";
     }

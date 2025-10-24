@@ -23,7 +23,6 @@ public class ProductSearchService {
 
     private final EmbeddingModel embeddingModel;
     private final ProductEmbeddingRepository embeddingRepository;
-    private final ProductRepository productRepository;
 
     private double lastSimilarityScore = 0.0;
 
@@ -31,22 +30,19 @@ public class ProductSearchService {
         return lastSimilarityScore;
     }
 
-    /**
-     * AI 견적 매칭용 - 프롬프트/임베딩 신뢰 기반 의미 유사도 검색
-     * 서버는 오직 벡터 검색과 스코어링만 수행한다.
-     */
+    /** AI 견적 매칭용 - 프롬프트/임베딩 신뢰 기반 의미 유사도 검색 서버는 오직 벡터 검색과 스코어링만 수행한다. */
     @Transactional(readOnly = true)
     public Optional<Product> findMostSimilarProduct(String query, String type) {
         try {
             if (query == null || query.isBlank()) return Optional.empty();
 
-            // 1️⃣ 입력 문장을 그대로 임베딩 (프롬프트 신뢰 기반)
+            // 입력 문장을 그대로 임베딩
             String inputText = query.trim();
             EmbeddingResponse response = embeddingModel.embedForResponse(List.of(inputText));
             float[] queryVector = response.getResults().get(0).getOutput();
             String queryVectorString = toPgVectorString(queryVector);
 
-            // 2️⃣ 동일 카테고리 내에서 의미 기반 검색
+            // 동일 카테고리 내에서 의미 기반 검색
             List<ProductEmbedding> nearest = embeddingRepository.findNearestByNormalizedType(queryVectorString, type, 20);
 
             if (nearest.isEmpty()) {
@@ -54,7 +50,7 @@ public class ProductSearchService {
                 return fallbackGlobalSearch(queryVectorString, inputText);
             }
 
-            // 3️⃣ 상위 후보 중 가장 유사한 항목 선택
+            // 상위 후보 중 가장 유사한 항목 선택
             Optional<Product> best = nearest.stream()
                     .map(ProductEmbedding::getProduct)
                     .filter(Objects::nonNull)
@@ -65,13 +61,13 @@ public class ProductSearchService {
                 Product p = best.get();
                 lastSimilarityScore = estimateSimilarity(inputText, p.getName());
                 if (lastSimilarityScore >= 0.2) {
-                    log.info("✅ 임베딩 매칭 성공] '{}' → '{}' (type={}, 유사도={})",
+                    log.info("임베딩 매칭 성공 '{}' → '{}' (type={}, 유사도={})",
                             query, p.getName(), type, String.format("%.2f", lastSimilarityScore));
                     return Optional.of(p);
                 }
             }
 
-            // 4️⃣ 폴백 검색
+            // 폴백 검색
             return fallbackGlobalSearch(queryVectorString, inputText);
 
         } catch (Exception e) {
@@ -81,9 +77,7 @@ public class ProductSearchService {
         }
     }
 
-    /**
-     * 전역 검색 (타입 무시)
-     */
+    /** 전역 검색 (타입 무시) */
     private Optional<Product> fallbackGlobalSearch(String queryVectorString, String query) {
         List<ProductEmbedding> global = embeddingRepository.findNearestEmbeddings(queryVectorString, 10);
 
@@ -93,19 +87,17 @@ public class ProductSearchService {
 
             lastSimilarityScore = estimateSimilarity(query, p.getName());
             if (lastSimilarityScore >= 0.25) {
-                log.info("🌍 [전역 폴백 매칭 성공] '{}' → '{}' (type={}, 유사도={})",
+                log.info("전역 폴백 매칭 성공 '{}' → '{}' (type={}, 유사도={})",
                         query, p.getName(), p.getType(), String.format("%.2f", lastSimilarityScore));
                 return Optional.of(p);
             }
         }
 
-        log.warn("⚠️ '{}' 전역 검색에서도 적절한 매칭을 찾지 못했습니다.", query);
+        log.warn("'{}' 전역 검색에서도 적절한 매칭을 찾지 못했습니다.", query);
         return Optional.empty();
     }
 
-    /**
-     * 카테고리별 의미 기반 검색 (RAG 컨텍스트용)
-     */
+    /** 카테고리별 의미 기반 검색 (RAG 컨텍스트용) */
     @Transactional(readOnly = true)
     public List<Product> searchSimilarProductsByCategory(String query, int limitPerCategory) {
         List<String> categories = List.of("case", "cpu", "vga", "ram", "power", "ssd", "mainboard", "cooler", "hdd");
@@ -138,9 +130,7 @@ public class ProductSearchService {
         return allResults;
     }
 
-    /**
-     * 문자열 유사도 계산 (Cosine 기반)
-     */
+    /** 문자열 유사도 계산 (Cosine 기반) */
     private double estimateSimilarity(String a, String b) {
         if (a == null || b == null) return 0.0;
 

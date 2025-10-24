@@ -27,7 +27,6 @@ import java.util.stream.Collectors;
 public class AiEstimateService {
 
     private final EstimateProductRepository estimateProductRepository;
-    private final ProductRepository productRepository;
     private final AiEstimateRepository aiEstimateRepository;
     private final ProductSearchService productSearchService;
 
@@ -55,6 +54,7 @@ public class AiEstimateService {
 
         return aiEstimate;
     }
+
     /** 제품 매핑 (자동 저장 시 사용) */
     @Transactional
     public void saveEstimateProducts(AiEstimate aiEstimate, EstimateResult result) {
@@ -99,11 +99,10 @@ public class AiEstimateService {
 
     private void saveEstimateProduct(AiEstimate aiEstimate, Product product, EstimateResult.Product comp) {
 
-
-        // GPT가 제안한 이름 (AI 이름)
+        // GPT가 제안한 이름
         String aiSuggestedName = comp.getMatchedName();
 
-        // DB 매칭된 실제 이름 (DB 검색 결과)
+        // DB 매칭된 실제 이름
         String matchedProductName = product != null ? product.getName() : null;
 
         EstimateProduct entity = EstimateProduct.builder()
@@ -120,8 +119,6 @@ public class AiEstimateService {
 
         estimateProductRepository.save(entity);
     }
-
-
 
     /** 사용자 행동(user_action) 업데이트 */
     @Transactional
@@ -150,7 +147,6 @@ public class AiEstimateService {
         List<EstimateProduct> products = estimateProductRepository.findAllByAiEstimateId(aiEstimateId);
         return AiEstimateResponse.fromEntityWithProducts(estimate, products);
     }
-
 
     /** 조회, 삭제 로직 */
     @Transactional

@@ -49,7 +49,7 @@ public class AssistantRunner {
                 .retrieve().toBodilessEntity();
     }
 
-    /** Assistant 실행 (Run 생성) */
+    /** Assistant 실행 */
     private String startRun(String threadId, String instructions) {
         var body = Map.of("assistant_id", assistantId);
 
@@ -98,8 +98,7 @@ public class AssistantRunner {
                 .orElse(null);
     }
 
-    /** Record 구조들 (최신 OpenAI API 호환) */
-
+    /** Record 구조들 */
     private record ThreadRes(String id) {}
 
     private record RunRes(String id, String status) {}
@@ -109,7 +108,6 @@ public class AssistantRunner {
     private record Msg(String id, String role, List<Content> content) {
         private String extractText() {
             if (content == null || content.isEmpty()) return null;
-            // content[].text.value 형태 대응
             Content c = content.get(0);
             if (c.text() == null) return null;
             return c.text().value();

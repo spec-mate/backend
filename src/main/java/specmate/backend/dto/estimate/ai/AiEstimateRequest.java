@@ -10,7 +10,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class AiEstimateRequest {
-    private String chatRoomId;          // AI 견적이 생성된 채팅방 ID
+    private String chatRoomId;
     private String title;
     private String description;
     private Integer totalPrice;

@@ -72,7 +72,7 @@ public class EstimateResult {
         private String type;
 
         @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-        private String aiName; // GPT 생성 이름 (내부 전용)
+        private String aiName; // GPT 생성 이름
 
         @JsonProperty("matched_name")
         private String matchedName; // DB 매칭 후 실제 이름

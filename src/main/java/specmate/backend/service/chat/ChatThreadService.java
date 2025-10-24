@@ -35,7 +35,6 @@ public class ChatThreadService {
             chatRoomRepository.save(room);
             log.info("Thread 생성 완료 (roomId={}, threadId={})", roomId, threadId);
         }
-
         return room;
     }
 }

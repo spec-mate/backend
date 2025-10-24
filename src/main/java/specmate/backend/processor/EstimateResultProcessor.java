@@ -65,7 +65,6 @@ public class EstimateResultProcessor {
             result.setNotes(getText(root, "notes"));
             result.setText(getText(root, "text", getText(root, "content")));
 
-            // another_input_text
             if (root.has("another_input_text") && root.get("another_input_text").isArray()) {
                 List<String> qList = new ArrayList<>();
                 for (JsonNode q : root.get("another_input_text")) qList.add(q.asText());

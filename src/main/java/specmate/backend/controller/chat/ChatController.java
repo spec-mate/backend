@@ -29,11 +29,9 @@ import java.util.List;
 @Tag(name = "Chat", description = "채팅방/메시지 관리 API")
 public class ChatController {
 
-    private final ChatService chatService;             // GPT 견적 생성 처리
-    private final ChatRoomService chatRoomService;     // 채팅방 CRUD
-    private final ChatMessageService chatMessageService; // 메시지 조회
-    private final EstimateResultProcessor estimateResultProcessor;
-    private final AiEstimateRepository aiEstimateRepository;
+    private final ChatService chatService;
+    private final ChatRoomService chatRoomService;
+    private final ChatMessageService chatMessageService;
 
     /** 채팅방 생성 */
     @Operation(summary = "채팅방 생성", description = "새로운 채팅방을 생성합니다.",
@@ -56,10 +54,8 @@ public class ChatController {
             @PathVariable String roomId,
             @RequestBody ChatMessageRequest request
     ) throws IOException {
-        // ChatService에서 EstimateResponse를 바로 받음
         EstimateResponse response = chatService.handleUserMessage(roomId, request.getPrompt());
 
-        // 프론트에 EstimateResponse 반환
         return ResponseEntity.ok(response);
     }
 

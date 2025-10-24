@@ -33,21 +33,21 @@ public class ChatService {
     /** 사용자 입력을 처리하고 GPT 견적 결과를 저장 */
     @Transactional
     public EstimateResponse handleUserMessage(String roomId, String userInput) {
-        // 1️⃣ Thread 보장
+        // Thread 보장
         ChatRoom room = chatThreadService.ensureThread(roomId);
 
-        // 2️⃣ 사용자 메시지 저장
+        // 사용자 메시지 저장
         chatMessageService.saveUserMessage(room, userInput);
 
-        // 3️⃣ RAG 컨텍스트 (userInput 기반)
+        // RAG 컨텍스트 (userInput 기반)
         var ragContext = productRagService.buildRagContext(userInput);
 
-        // 4️⃣ 최근 견적 조회
+        // 최근 견적 조회
         AiEstimate latestEstimate = aiEstimateRepository
                 .findTopByChatRoomOrderByCreatedAtDesc(room)
                 .orElse(null);
 
-        // 5️⃣ GPT 호출
+        // GPT 호출
         String reply;
         try {
             reply = assistantRunner.run(
@@ -65,10 +65,10 @@ public class ChatService {
             reply = "(응답을 생성하지 못했습니다.)";
         }
 
-        // 6️⃣ GPT 응답 메시지 저장
+        // GPT 응답 메시지 저장
         ChatMessage assistantMsg = chatMessageService.saveAssistantMessage(room, reply);
 
-        // 7️⃣ GPT 응답 파싱 (EstimateResult 생성: ai_name 포함)
+        // GPT 응답 파싱 (EstimateResult 생성: ai_name 포함)
         EstimateResult estimateResult = estimateResultProcessor.parse(reply, ragContext.getDtoFallbackMap());
 
         if (estimateResult == null || estimateResult.isAllDefaults()) {
@@ -79,28 +79,34 @@ public class ChatService {
                     .build();
         }
 
-        // 8️⃣ DB 매칭 수행 (matched_name 채우기)
+        // DB 매칭 수행 (matched_name 채우기)
         var refinedRagContext = productRagService.buildRagContext(estimateResult);
         mergeMatchedNames(estimateResult, refinedRagContext.getDtoFallbackMap());
 
-        // 9️⃣ 견적 저장
+        // 견적 저장 및 ID 추출
+        AiEstimate savedEstimate = null;
         if (latestEstimate == null) {
-            handleNewEstimate(room, assistantMsg, estimateResult);
+            savedEstimate = handleNewEstimate(room, assistantMsg, estimateResult);
         } else if (isReconfigurationRequest(userInput)) {
-            handleReconfiguration(room, assistantMsg, estimateResult);
+            savedEstimate = handleReconfiguration(room, assistantMsg, estimateResult);
         } else {
             log.info("기존 견적이 존재 → 설명 모드로 동작");
         }
 
-        // 변환: 내부 EstimateResult → 클라이언트 응답용 EstimateResponse
-        return toResponse(estimateResult);
+        // 응답 변환 + ID 주입
+        EstimateResponse response = toResponse(estimateResult);
+        if (savedEstimate != null) {
+            response.setAiEstimateId(String.valueOf(savedEstimate.getId()));
+        }
+
+        return response;
     }
 
+    /** EstimateResult → EstimateResponse 변환 */
     private EstimateResponse toResponse(EstimateResult result) {
         if (result == null) return null;
 
         return EstimateResponse.builder()
-                .aiEstimateId(result.getAiEstimateId())
                 .buildName(result.getBuildName())
                 .buildDescription(result.getBuildDescription())
                 .totalPrice(result.getTotalPrice())
@@ -118,7 +124,6 @@ public class ChatService {
                 .build();
     }
 
-
     /** GPT의 ai_name과 DB matched_name 병합 */
     private void mergeMatchedNames(EstimateResult estimateResult,
                                    Map<String, EstimateResult.Product> fallbackMap) {
@@ -135,11 +140,11 @@ public class ChatService {
         }
     }
 
-    /** 신규 견적 생성 */
-    private ChatMessage handleNewEstimate(ChatRoom room, ChatMessage assistantMsg, EstimateResult result) {
+    /** 신규 견적 생성 → 생성된 AiEstimate 반환 */
+    private AiEstimate handleNewEstimate(ChatRoom room, ChatMessage assistantMsg, EstimateResult result) {
         if (result == null || result.isEmpty() || result.isAllDefaults()) {
             log.info("비견적성 요청으로 판단되어 견적 저장을 생략합니다.");
-            return assistantMsg;
+            return null;
         }
 
         AiEstimate estimate = aiEstimateService.createAiEstimate(room, assistantMsg, result);
@@ -147,14 +152,14 @@ public class ChatService {
         aiEstimateService.saveEstimateProducts(estimate, result);
 
         log.info("신규 견적 생성 완료: roomId={}, estimateId={}", room.getId(), estimate.getId());
-        return assistantMsg;
+        return estimate;
     }
 
-    /** 재구성 요청 처리 */
-    private ChatMessage handleReconfiguration(ChatRoom room, ChatMessage assistantMsg, EstimateResult result) {
+    /** 재구성 요청 처리 → 생성된 AiEstimate 반환 */
+    private AiEstimate handleReconfiguration(ChatRoom room, ChatMessage assistantMsg, EstimateResult result) {
         if (result == null || result.isEmpty() || result.isAllDefaults()) {
             log.info("재구성 요청이지만 유효한 견적 결과가 없어 저장을 생략합니다.");
-            return assistantMsg;
+            return null;
         }
 
         AiEstimate reconfigured = aiEstimateService.createAiEstimate(room, assistantMsg, result);
@@ -162,7 +167,7 @@ public class ChatService {
         aiEstimateService.saveEstimateProducts(reconfigured, result);
 
         log.info("견적 재구성 완료: roomId={}, newEstimateId={}", room.getId(), reconfigured.getId());
-        return assistantMsg;
+        return reconfigured;
     }
 
     /** 재구성 요청 여부 판단 */

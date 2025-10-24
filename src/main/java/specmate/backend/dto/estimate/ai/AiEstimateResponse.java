@@ -2,12 +2,10 @@ package specmate.backend.dto.estimate.ai;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.*;
 import specmate.backend.entity.AiEstimate;
 import specmate.backend.entity.EstimateProduct;
+import specmate.backend.entity.enums.UserAction;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -26,6 +24,10 @@ public class AiEstimateResponse {
     private Integer totalPrice;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    @JsonProperty("user_action")
+    private UserAction userAction;
+
     private List<ProductResponse> products;
 
     @Data
@@ -57,6 +59,7 @@ public class AiEstimateResponse {
                 .totalPrice(entity.getTotalPrice())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                .userAction(entity.getUserAction())
                 .build();
     }
 
@@ -70,6 +73,7 @@ public class AiEstimateResponse {
                 .totalPrice(entity.getTotalPrice())
                 .createdAt(entity.getCreatedAt())
                 .updatedAt(entity.getUpdatedAt())
+                .userAction(entity.getUserAction())
                 .products(products != null
                         ? products.stream()
                         .map(AiEstimateResponse::toProductResponse)
@@ -91,6 +95,4 @@ public class AiEstimateResponse {
                 .image(ep.getProduct() != null ? ep.getProduct().getImage() : null)
                 .build();
     }
-
-
 }

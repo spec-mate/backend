@@ -89,9 +89,9 @@ public class EstimateResultProcessor {
                                     getText(node, "product_type", "unknown")));
                     p.setType(normalizeType(type));
 
-                    p.setAiName(getText(node, "matched_name", getText(node, "ai_name", "미선택")));
-
-                    p.setMatchedName(null);
+                    String matched = getText(node, "matched_name", null);
+                    p.setAiName(matched != null ? matched : getText(node, "ai_name", "미선택"));
+                    p.setMatchedName(matched);
 
                     p.setDescription(getText(node, "description", "선택된 부품 없음"));
                     p.setPrice(cleanPrice(getText(node, "price", "0")));

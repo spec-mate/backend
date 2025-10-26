@@ -30,7 +30,7 @@ public class ChatService {
     private final AiEstimateService aiEstimateService;
     private final AiEstimateRepository aiEstimateRepository;
 
-    /** 사용자 입력을 처리하고 GPT 견적 결과를 저장 */
+    /** GPT 견적 처리 파이프라인 */
     @Transactional
     public EstimateResponse handleUserMessage(String roomId, String userInput) {
         // Thread 보장
@@ -39,62 +39,56 @@ public class ChatService {
         // 사용자 메시지 저장
         chatMessageService.saveUserMessage(room, userInput);
 
-        // RAG 컨텍스트 (userInput 기반)
+        // RAG 컨텍스트 생성
         var ragContext = productRagService.buildRagContext(userInput);
-
-        // 최근 견적 조회
-        AiEstimate latestEstimate = aiEstimateRepository
-                .findTopByChatRoomOrderByCreatedAtDesc(room)
-                .orElse(null);
 
         // GPT 호출
         String reply;
         try {
-            reply = assistantRunner.run(
-                    room.getThread(),
-                    userInput,
-                    ragContext.getInstructions()
-            );
+            reply = assistantRunner.run(room.getThread(), userInput, ragContext.getContextJson());
         } catch (Exception e) {
             log.error("GPT 호출 중 오류 발생", e);
             reply = "(GPT 응답 생성 중 오류가 발생했습니다.)";
         }
 
         if (reply == null || reply.isBlank()) {
-            log.warn("GPT 응답이 비어 있음. 기본값으로 대체합니다.");
+            log.warn("GPT 응답이 비어 있음 → 기본 메시지 대체");
             reply = "(응답을 생성하지 못했습니다.)";
         }
 
-        // GPT 응답 메시지 저장
+        // GPT 응답 저장 (ChatMessage)
         ChatMessage assistantMsg = chatMessageService.saveAssistantMessage(room, reply);
 
-        // GPT 응답 파싱 (EstimateResult 생성: ai_name 포함)
-        EstimateResult estimateResult = estimateResultProcessor.parse(reply, ragContext.getDtoFallbackMap());
+        // GPT 응답 파싱
+        EstimateResult result = estimateResultProcessor.parse(reply, null);
 
-        if (estimateResult == null || estimateResult.isAllDefaults()) {
-            log.info("비견적성 요청으로 판단 → JSON 응답 대신 일반 텍스트 응답 반환");
+        // 비견적성 응답 판단
+        if (result == null || result.isAllDefaults()) {
+            log.info("비견적성 응답 → 텍스트 반환");
             return EstimateResponse.builder()
                     .text(reply)
                     .notes("비견적성 응답")
                     .build();
         }
 
-        // DB 매칭 수행 (matched_name 채우기)
-        var refinedRagContext = productRagService.buildRagContext(estimateResult);
-        mergeMatchedNames(estimateResult, refinedRagContext.getDtoFallbackMap());
+        // 기존 견적 확인
+        AiEstimate latestEstimate = aiEstimateRepository
+                .findTopByChatRoomOrderByCreatedAtDesc(room)
+                .orElse(null);
 
-        // 견적 저장 및 ID 추출
-        AiEstimate savedEstimate = null;
+        // 신규/재구성 분기 처리
+        AiEstimate savedEstimate;
         if (latestEstimate == null) {
-            savedEstimate = handleNewEstimate(room, assistantMsg, estimateResult);
+            savedEstimate = handleNewEstimate(room, assistantMsg, result);
         } else if (isReconfigurationRequest(userInput)) {
-            savedEstimate = handleReconfiguration(room, assistantMsg, estimateResult);
+            savedEstimate = handleReconfiguration(room, assistantMsg, result);
         } else {
-            log.info("기존 견적이 존재 → 설명 모드로 동작");
+            log.info("기존 견적이 존재 → 설명 모드로 판단");
+            savedEstimate = null;
         }
 
-        // 응답 변환 + ID 주입
-        EstimateResponse response = toResponse(estimateResult);
+        // 응답 변환 및 ID 주입
+        EstimateResponse response = toResponse(result);
         if (savedEstimate != null) {
             response.setAiEstimateId(String.valueOf(savedEstimate.getId()));
         }
@@ -102,7 +96,7 @@ public class ChatService {
         return response;
     }
 
-    /** EstimateResult → EstimateResponse 변환 */
+    /** EstimateResult → Response 변환 */
     private EstimateResponse toResponse(EstimateResult result) {
         if (result == null) return null;
 
@@ -117,8 +111,9 @@ public class ChatService {
                         .map(p -> EstimateResponse.ComponentResponse.builder()
                                 .type(p.getType())
                                 .matchedName(p.getMatchedName())
-                                .price(p.getPrice())
                                 .description(p.getDescription())
+                                .price(p.getPrice())
+                                .image(p.getImage())
                                 .build())
                         .toList())
                 .build();
@@ -134,16 +129,16 @@ public class ChatService {
             if (key == null) continue;
 
             EstimateResult.Product matched = fallbackMap.get(key);
-            if (matched != null) {
+            if (matched != null && matched.getMatchedName() != null) {
                 comp.setMatchedName(matched.getMatchedName());
             }
         }
     }
 
-    /** 신규 견적 생성 → 생성된 AiEstimate 반환 */
+    /** 신규 견적 생성 */
     private AiEstimate handleNewEstimate(ChatRoom room, ChatMessage assistantMsg, EstimateResult result) {
         if (result == null || result.isEmpty() || result.isAllDefaults()) {
-            log.info("비견적성 요청으로 판단되어 견적 저장을 생략합니다.");
+            log.info("비견적성 요청으로 판단 → 견적 저장 생략");
             return null;
         }
 
@@ -155,10 +150,10 @@ public class ChatService {
         return estimate;
     }
 
-    /** 재구성 요청 처리 → 생성된 AiEstimate 반환 */
+    /**  재구성 견적 생성 */
     private AiEstimate handleReconfiguration(ChatRoom room, ChatMessage assistantMsg, EstimateResult result) {
         if (result == null || result.isEmpty() || result.isAllDefaults()) {
-            log.info("재구성 요청이지만 유효한 견적 결과가 없어 저장을 생략합니다.");
+            log.info("재구성 요청이지만 유효 견적 없음 → 저장 생략");
             return null;
         }
 
@@ -170,7 +165,7 @@ public class ChatService {
         return reconfigured;
     }
 
-    /** 재구성 요청 여부 판단 */
+    /** 재구성 요청 키워드 */
     private boolean isReconfigurationRequest(String userInput) {
         String[] keywords = {"다시", "재구성", "수정", "바꿔", "변경", "업그레이드", "낮춰", "강화",
                 "좀 더", "조용하게", "성능 높여", "성능 낮춰", "다른 걸로", "비슷하게"};

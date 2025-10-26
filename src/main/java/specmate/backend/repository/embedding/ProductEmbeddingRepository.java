@@ -9,14 +9,10 @@ import specmate.backend.entity.ProductEmbedding;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
-public interface ProductEmbeddingRepository extends JpaRepository<ProductEmbedding, Long> {
+public interface ProductEmbeddingRepository extends JpaRepository<ProductEmbedding, Long>, ProductEmbeddingRepositoryCustom {
 
-    /** 특정 product_id로 임베딩 조회 */
-    Optional<ProductEmbedding> findByProductId(Integer productId);
-
-    /** pgvector: 벡터 삽입 (문자열 → CAST(:vector AS vector)) */
+    /** 벡터 삽입 (OpenAI 임베딩 결과를 pgvector로 캐스팅하여 저장) */
     @Modifying
     @Transactional
     @Query(value = """
@@ -32,9 +28,10 @@ public interface ProductEmbeddingRepository extends JpaRepository<ProductEmbeddi
                           @Param("normalizedType") String normalizedType,
                           @Param("price") Long priceNumeric);
 
-    /** products.type ILIKE 로 필터링 (pgvector 유사도 검색 포함) */
+
+    /** pgvector 의미 검색 (ILIKE 제거, 오직 벡터 유사도 기반) */
     @Query(value = """
-        SELECT
+        SELECT 
             pe.id,
             pe.product_id,
             pe.vector,
@@ -43,39 +40,41 @@ public interface ProductEmbeddingRepository extends JpaRepository<ProductEmbeddi
             pe.normalized_type,
             pe.price_numeric
         FROM product_embeddings pe
-        JOIN products p ON pe.product_id = p.id
-        WHERE p.type ILIKE CONCAT('%', :type, '%')
+        WHERE pe.vector IS NOT NULL
         ORDER BY pe.vector <-> CAST(:queryVector AS vector)
         LIMIT :limit
         """, nativeQuery = true)
-    List<ProductEmbedding> findNearestEmbeddingsByType(
+    List<ProductEmbedding> searchBySimilarity(
             @Param("queryVector") String queryVector,
-            @Param("type") String type,
+            @Param("keyword") String keyword, // 유지 (호출 구조 변경 방지용)
             @Param("limit") int limit
     );
 
-    /** normalized_type 으로 직접 필터링 — 조인 제거 (속도 개선) */
+
+    /** 특정 카테고리 내에서 유사도 검색 */
     @Query(value = """
-        SELECT
-            id,
-            product_id,
-            vector,
-            content,
-            created_at,
-            normalized_type,
-            price_numeric
-        FROM product_embeddings
-        WHERE normalized_type = :type
-        ORDER BY vector <-> CAST(:queryVector AS vector)
-        LIMIT :limit
-        """, nativeQuery = true)
+    SELECT
+        id,
+        product_id,
+        vector,
+        content,
+        created_at,
+        normalized_type,
+        price_numeric
+    FROM product_embeddings
+    WHERE normalized_type = :type
+      AND vector IS NOT NULL
+    ORDER BY vector <-> CAST(:queryVector AS vector)
+    LIMIT :limit
+    """, nativeQuery = true)
     List<ProductEmbedding> findNearestByNormalizedType(
             @Param("queryVector") String queryVector,
             @Param("type") String normalizedType,
             @Param("limit") int limit
     );
 
-    /** 타입 무관 전체 근접 검색 (유사도 기반 정렬) */
+
+    /** 전체 범위 유사도 검색 (카테고리 무시, fallback 용도) */
     @Query(value = """
         SELECT
             id,

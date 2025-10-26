@@ -118,6 +118,23 @@ public class AiEstimateController {
         return ResponseEntity.ok(updated);
     }
 
+    /** 마이페이지 저장 */
+    @PatchMapping("/rooms/{roomId}/action")
+    public ResponseEntity<AiEstimateResponse> finalizeEstimate(
+            @PathVariable String roomId,
+            @RequestParam String action,
+            Authentication authentication
+    ) {
+        if (!"saved".equalsIgnoreCase(action)) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        String userId = authentication.getName();
+        AiEstimateResponse response = aiEstimateService.finalizeEstimate(roomId, userId);
+        return ResponseEntity.ok(response);
+    }
+
+
     /** 견적 삭제 */
     @Operation(
             summary = "AI 견적 삭제",

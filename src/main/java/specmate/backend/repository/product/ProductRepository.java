@@ -18,6 +18,8 @@ public interface ProductRepository extends JpaRepository<Product, Integer> {
 
     List<Product> findByNameContainingIgnoreCase(String name);
 
+    Optional<Product> findFirstByNameContainingIgnoreCase(String name);
+
     // 이름 기반 유사 검색
     @Query("SELECT p FROM Product p WHERE LOWER(p.name) LIKE LOWER(CONCAT('%', :namePart, '%'))")
     List<Product> findSimilarByName(@Param("namePart") String namePart);

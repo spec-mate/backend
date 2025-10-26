@@ -24,6 +24,20 @@ public class EstimateProduct {
     @JoinColumn(name = "ai_estimate_id", nullable = false)
     private AiEstimate aiEstimate;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "chat_room_id")
+    private ChatRoom chatRoom;
+
+    @Column(name = "type", length = 50)
+    private String type;
+
+    @Column(name = "description", columnDefinition = "text")
+    private String description;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "message_id")
+    private ChatMessage message;
+
     @ManyToOne
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;

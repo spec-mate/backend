@@ -48,6 +48,7 @@ public class EstimateResponse {
         private String matchedName;
 
         private String price;
+        private String image;
         private String description;
     }
 }

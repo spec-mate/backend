@@ -32,26 +32,34 @@ public class EstimateResult {
     private List<String> anotherInputText;
 
     @JsonProperty("components")
-    @JsonAlias({"products"})
+    @JsonAlias({"products", "items"})
     private List<Product> products;
 
     public boolean isEmpty() {
         return products == null || products.isEmpty();
     }
 
+    /** 모든 제품이 미선택 또는 가격 0이면 true → 비견적성 응답 */
     public boolean isAllDefaults() {
         if (products == null || products.isEmpty()) return true;
 
-        return products.stream().allMatch(p ->
-                (p.getMatchedName() == null || p.getMatchedName().isBlank() ||
-                        p.getMatchedName().equals("미선택") || p.getMatchedName().equalsIgnoreCase("none")) &&
-                        (p.getPrice() == null || p.getPrice().isBlank() || parsePrice(p.getPrice()) == 0)
-        );
+        return products.stream().noneMatch(p -> {
+            String name = p.getMatchedName();
+            int price = parsePrice(p.getPrice());
+
+            return name != null && !name.isBlank()
+                    && !name.equals("미선택")
+                    && !name.equalsIgnoreCase("none")
+                    && price > 0;
+        });
     }
 
     private int parsePrice(String priceStr) {
+        if (priceStr == null) return 0;
         try {
-            return Integer.parseInt(priceStr.replaceAll("[^0-9]", ""));
+            String cleaned = priceStr.replaceAll("[^0-9]", "");
+            if (cleaned.isBlank()) return 0;
+            return Integer.parseInt(cleaned);
         } catch (Exception e) {
             return 0;
         }
@@ -75,9 +83,10 @@ public class EstimateResult {
         private String aiName; // GPT 생성 이름
 
         @JsonProperty("matched_name")
-        private String matchedName; // DB 매칭 후 실제 이름
+        private String matchedName; // 실제 선택된 제품명
 
         private String price;
+        private String image;
         private String description;
     }
 }

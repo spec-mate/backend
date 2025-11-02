@@ -32,8 +32,6 @@ public class ChatController {
     private final ChatService chatService;             // GPT 견적 생성 처리
     private final ChatRoomService chatRoomService;     // 채팅방 CRUD
     private final ChatMessageService chatMessageService; // 메시지 조회
-    private final EstimateResultProcessor estimateResultProcessor;
-    private final AiEstimateRepository aiEstimateRepository;
 
     /** 채팅방 생성 */
     @Operation(summary = "채팅방 생성", description = "새로운 채팅방을 생성합니다.",

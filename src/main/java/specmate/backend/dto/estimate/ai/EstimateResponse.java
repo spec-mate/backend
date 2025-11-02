@@ -3,9 +3,14 @@ package specmate.backend.dto.estimate.ai;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.*;
+import specmate.backend.entity.AiEstimate;
+import specmate.backend.entity.EstimateProduct;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Data
 @Builder
@@ -24,7 +29,7 @@ public class EstimateResponse {
     private String buildDescription;
 
     @JsonProperty("total")
-    private String totalPrice;
+    private Integer totalPrice;
 
     private String notes;
     private String text;
@@ -35,6 +40,36 @@ public class EstimateResponse {
     @JsonProperty("components")
     private List<ComponentResponse> components;
 
+    public static EstimateResponse fromEntityWithProducts(AiEstimate estimate, List<EstimateProduct> products) {
+        return EstimateResponse.builder()
+                .aiEstimateId(estimate.getId().toString())
+                .buildName(estimate.getTitle())
+                .buildDescription(estimate.getDescription())
+                .totalPrice(estimate.getTotalPrice())
+                .notes(estimate.getDescription())
+                .components(products.stream()
+                        .map(ep -> ComponentResponse.builder()
+                                .type(ep.getType())
+                                .name(ep.getMatchedName())
+                                .description(ep.getDescription())
+                                .detail(ComponentResponse.Detail.builder()
+                                        .price(String.valueOf(ep.getUnitPrice()))
+                                        .image(ep.getImage())
+                                        .build())
+                                .build())
+                        .collect(Collectors.toList()))
+                .build();
+    }
+
+    public String toJson() {
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            return mapper.writeValueAsString(this);
+        } catch (JsonProcessingException e) {
+            return "{}";
+        }
+    }
+
     @Data
     @Builder
     @NoArgsConstructor
@@ -44,10 +79,22 @@ public class EstimateResponse {
         @JsonAlias({"category", "type"})
         private String type;
 
-        @JsonProperty("matched_name")
-        private String matchedName;
+        @JsonProperty("name")
+        @JsonAlias({"matched_name"})
+        private String name;
 
-        private String price;
         private String description;
+
+        @JsonProperty("detail")
+        private Detail detail;
+
+        @Data
+        @Builder
+        @NoArgsConstructor
+        @AllArgsConstructor
+        public static class Detail {
+            private String price;
+            private String image;
+        }
     }
 }

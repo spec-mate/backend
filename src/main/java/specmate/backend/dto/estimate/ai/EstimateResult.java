@@ -1,16 +1,19 @@
 package specmate.backend.dto.estimate.ai;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class EstimateResult {
 
     @JsonProperty("ai_estimate_id")
@@ -23,7 +26,7 @@ public class EstimateResult {
     private String buildDescription;
 
     @JsonProperty("total")
-    private String totalPrice;
+    private Integer totalPrice;
 
     private String notes;
     private String text;
@@ -35,6 +38,9 @@ public class EstimateResult {
     @JsonAlias({"products"})
     private List<Product> products;
 
+    @JsonIgnore
+    private String selectType;
+
     public boolean isEmpty() {
         return products == null || products.isEmpty();
     }
@@ -42,11 +48,14 @@ public class EstimateResult {
     public boolean isAllDefaults() {
         if (products == null || products.isEmpty()) return true;
 
-        return products.stream().allMatch(p ->
-                (p.getMatchedName() == null || p.getMatchedName().isBlank() ||
-                        p.getMatchedName().equals("미선택") || p.getMatchedName().equalsIgnoreCase("none")) &&
-                        (p.getPrice() == null || p.getPrice().isBlank() || parsePrice(p.getPrice()) == 0)
-        );
+        long validCount = products.stream()
+                .filter(p -> {
+                    if (p.getDetail() == null) return false;
+                    return parsePrice(p.getDetail().getPrice()) > 0;
+                })
+                .count();
+
+        return validCount == 0;
     }
 
     private int parsePrice(String priceStr) {
@@ -58,7 +67,7 @@ public class EstimateResult {
     }
 
     @Data
-    @Builder
+    @Builder(toBuilder = true)
     @NoArgsConstructor
     @AllArgsConstructor
     @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -71,13 +80,33 @@ public class EstimateResult {
         @JsonAlias({"category", "type"})
         private String type;
 
-        @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-        private String aiName; // GPT 생성 이름 (내부 전용)
+        @JsonProperty("name")
+        @JsonAlias({"matched_name"})
+        private String name;
 
-        @JsonProperty("matched_name")
-        private String matchedName; // DB 매칭 후 실제 이름
-
-        private String price;
         private String description;
+
+        @JsonProperty("detail")
+        private Detail detail;
+
+        @JsonProperty("ai_name")
+        @JsonAlias({"aiName"})
+        private String aiName;
+
+        @JsonIgnore
+        private Integer productId;
+
+        @JsonIgnore
+        private Map<String, Object> metadata;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class Detail {
+        private String price;
+        private String image;
     }
 }

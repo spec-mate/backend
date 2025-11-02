@@ -170,7 +170,7 @@ public class ChatService {
         return reconfigured;
     }
 
-    /** 재구성 요청 여부 판단 */
+    /**  재구성 요청 여부 판단 */
     private boolean isReconfigurationRequest(String userInput) {
         String[] keywords = {"다시", "재구성", "수정", "바꿔", "변경", "업그레이드", "낮춰", "강화",
                 "좀 더", "조용하게", "성능 높여", "성능 낮춰", "다른 걸로", "비슷하게"};

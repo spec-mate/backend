@@ -33,18 +33,22 @@ public class ProductRagService {
         }
 
         List<Map<String, Object>> resultsList = new ArrayList<>();
+        Set<String> addedTypes = new HashSet<>();
 
         for (String type : COMPONENT_TYPES) {
             try {
-                // type 키워드를 포함해서 검색 요청
                 SearchRequest request = SearchRequest.builder()
                         .query(userInput + " " + type)
                         .topK(5)
+                        .similarityThresholdAll()
                         .build();
 
                 List<Document> docs = qdrantVectorStore.similaritySearch(request);
 
                 if (!docs.isEmpty()) {
+                    // 중복 타입 방지
+                    if (addedTypes.contains(type)) continue;
+
                     Document doc = docs.get(0);
                     Map<String, Object> meta = doc.getMetadata();
 
@@ -58,19 +62,11 @@ public class ProductRagService {
                     ));
 
                     resultsList.add(comp);
+                    addedTypes.add(type);
                     log.info("[RAG] {} → {}", type, meta.getOrDefault("name", "데이터 없음"));
                 } else {
-                    // 해당 type 결과 없음 → 빈 슬롯 채우기
-                    Map<String, Object> comp = new LinkedHashMap<>();
-                    comp.put("type", type);
-                    comp.put("name", "데이터 없음");
-                    comp.put("description", "추천 부품 없음");
-                    comp.put("detail", Map.of("price", "0", "image", ""));
-                    resultsList.add(comp);
-
                     log.warn("[RAG] {} 타입 결과 없음 (fallback)", type);
                 }
-
             } catch (Exception e) {
                 log.error("[RAG] {} 검색 실패: {}", type, e.getMessage());
             }

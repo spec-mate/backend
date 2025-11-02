@@ -22,7 +22,7 @@ public class AiEstimate {
     private String id; // AI 견적 PK
 
     @ManyToOne
-    @JoinColumn(name = "room_id", nullable = false)
+    @JoinColumn(name = "room_id", nullable = true)
     private ChatRoom chatRoom;
 
     @ManyToOne
@@ -32,6 +32,9 @@ public class AiEstimate {
     @ManyToOne
     @JoinColumn(name = "message_id", nullable = false)
     private ChatMessage message; // 요구사항 메시지
+
+    @Column(columnDefinition = "text")
+    private String description;
 
     @Column(nullable = false)
     private String title;

@@ -14,6 +14,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import specmate.backend.dto.estimate.ai.AiEstimateRequest;
 import specmate.backend.dto.estimate.ai.AiEstimateResponse;
+import specmate.backend.dto.estimate.ai.UserSavedEstimateRequest;
+import specmate.backend.dto.estimate.ai.UserSavedEstimateResponse;
 import specmate.backend.entity.enums.UserAction;
 import specmate.backend.service.estimate.ai.AiEstimateService;
 
@@ -32,7 +34,9 @@ public class AiEstimateController {
 
     private final AiEstimateService aiEstimateService;
 
-    /** 마이페이지 - 내 견적 목록 조회 */
+    /**
+     * 마이페이지 - 내 견적 목록 조회
+     */
     @Operation(
             summary = "내 견적 목록 조회",
             description = """
@@ -59,7 +63,9 @@ public class AiEstimateController {
         return ResponseEntity.ok(estimates);
     }
 
-    /** 단일 견적 상세 조회 */
+    /**
+     * 단일 견적 상세 조회
+     */
     @Operation(
             summary = "AI 견적 상세 조회",
             description = """
@@ -87,7 +93,9 @@ public class AiEstimateController {
         return ResponseEntity.ok(response);
     }
 
-    /** AI 견적 사용자 업데이트 */
+    /**
+     * AI 견적 사용자 업데이트
+     */
     @PatchMapping("/{aiestimateId}/action")
     @Operation(
             summary = "AI 견적 사용자 반응 업데이트",
@@ -118,7 +126,9 @@ public class AiEstimateController {
         return ResponseEntity.ok(updated);
     }
 
-    /** 견적 삭제 */
+    /**
+     * 견적 삭제
+     */
     @Operation(
             summary = "AI 견적 삭제",
             description = """
@@ -144,4 +154,29 @@ public class AiEstimateController {
         aiEstimateService.deleteAiEstimate(aiestimateId, userId);
         return ResponseEntity.noContent().build();
     }
+
+    /**
+     * 사용자가 직접 보관함에 저장하는 AI 견적 생성
+     */
+    @PostMapping
+    @Operation(
+            summary = "사용자가 직접 보관함에 저장하는 AI 견적 생성",
+            description = """
+                    ChatPage에서 '보관함으로 이동' 버튼 클릭 시 호출됩니다.<br>
+                    프론트에서 ai_estimate_id, title, description, total, components를 전달합니다.<br>
+                    DB에는 AiEstimate 및 EstimateProduct가 함께 저장됩니다.
+                    """,
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
+    public ResponseEntity<UserSavedEstimateResponse> createUserSaveEstimate(
+            @Parameter(hidden = true) Authentication authentication,
+            @RequestBody UserSavedEstimateRequest request
+    ) {
+        String userId = authentication.getName();
+        UserSavedEstimateResponse response =
+                aiEstimateService.createUserSaveAiEstimate(userId, request);
+        return ResponseEntity.ok(response);
+    }
 }
+
+

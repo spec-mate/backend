@@ -28,7 +28,16 @@ public class EstimateProduct {
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
-    @Column(name = "ai_name", nullable = false)
+    @Column(name = "image", columnDefinition = "text")
+    private String image;
+
+    @Column(nullable = false)
+    private String type;
+
+    @Column(columnDefinition = "text")
+    private String description;
+
+    @Column(name = "ai_name")
     private String aiName; // AI가 인식한 부품명
 
     @Column(name = "matched_name")

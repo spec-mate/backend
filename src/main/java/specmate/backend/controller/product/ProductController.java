@@ -14,8 +14,6 @@ import org.springframework.web.bind.annotation.*;
 import specmate.backend.dto.product.ProductRequest;
 import specmate.backend.dto.product.ProductResponse;
 import specmate.backend.entity.Product;
-import specmate.backend.entity.ProductEmbedding;
-import specmate.backend.service.product.ProductSearchService;
 import specmate.backend.service.product.ProductService;
 
 import java.util.List;
@@ -27,7 +25,6 @@ import java.util.List;
 public class ProductController {
 
     private final ProductService productService;
-    private final ProductSearchService productSearchService;
 
     @Operation(summary = "상품 전체 조회", description = "DB에 저장된 모든 상품 리스트를 조회합니다.")
     @ApiResponse(responseCode = "200", description = "상품 목록 조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ProductResponse.class)))
@@ -74,19 +71,5 @@ public class ProductController {
     public ResponseEntity<Void> deleteProduct(@PathVariable Integer id) {
         productService.deleteProduct(id);
         return ResponseEntity.noContent().build();
-    }
-
-    @Operation(summary = "의미 기반 상품 검색", description = """
-        사용자의 자연어 질의(예: '화이트 감성 게이밍 PC')를 기반으로
-        OpenAI Embedding + pgvector를 이용해 의미적으로 유사한 상품을 검색합니다.
-        """)
-    @ApiResponse(responseCode = "200", description = "의미 검색 성공", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ProductEmbedding.class)))
-    @GetMapping("/search")
-    public ResponseEntity<List<Product>> searchProducts(
-            @RequestParam String query,
-            @RequestParam(defaultValue = "5") int limit) {
-
-        List<Product> results = productSearchService.searchSimilarProductsByCategory(query, limit);
-        return ResponseEntity.ok(results);
     }
 }

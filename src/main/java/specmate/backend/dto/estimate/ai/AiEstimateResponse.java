@@ -1,6 +1,5 @@
 package specmate.backend.dto.estimate.ai;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import specmate.backend.entity.AiEstimate;

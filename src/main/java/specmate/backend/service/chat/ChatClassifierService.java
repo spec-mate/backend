@@ -31,7 +31,6 @@ public class ChatClassifierService {
             );
         } catch (Exception e) {
             return EstimateResult.builder()
-                    .text("(파싱 실패)")
                     .selectType("conversation")
                     .build();
         }

@@ -1,5 +1,8 @@
 package specmate.backend.dto.chat;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,13 +16,36 @@ import java.util.Map;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@JsonPropertyOrder({ "isJson", "data" })
 public class ChatMessageResponse {
-    private String sender;                   // USER or ASSISTANT
-    private String content;                  // 자연어 reply
+
+    @JsonIgnore
+    private String sender;            // USER or ASSISTANT
+
+    @JsonIgnore
+    private String content;           // 자연어 reply
+
+    @JsonIgnore
     private String roomId;
+
+    @JsonIgnore
     private Map<String, Object> parsedJson;
+
+    @JsonIgnore
     private String messageType;
+
+    @JsonIgnore
     private LocalDateTime createdAt;
+
+    @JsonProperty("isJson")
+    public boolean getIsJson() {
+        return "ESTIMATE".equalsIgnoreCase(messageType);
+    }
+
+    @JsonProperty("data")
+    public Object getData() {
+        return getIsJson() ? parsedJson : content;
+    }
 
     public static ChatMessageResponse fromEntity(ChatMessage entity) {
         boolean hasJson = entity.getParsedJson() != null && !entity.getParsedJson().isEmpty();

@@ -28,9 +28,6 @@ public class EstimateResult {
     @JsonProperty("total")
     private Integer totalPrice;
 
-    private String notes;
-    private String text;
-
     @JsonProperty("another_input_text")
     private List<String> anotherInputText;
 
@@ -98,6 +95,38 @@ public class EstimateResult {
 
         @JsonIgnore
         private Map<String, Object> metadata;
+    }
+
+    public Map<String, Object> toMap() {
+        Map<String, Object> resultMap = new java.util.LinkedHashMap<>();
+        resultMap.put("ai_estimate_id", this.aiEstimateId);
+        resultMap.put("build_name", this.buildName);
+        resultMap.put("build_description", this.buildDescription);
+        resultMap.put("total", this.totalPrice);
+        resultMap.put("another_input_text", this.anotherInputText);
+
+        // components
+        if (this.products != null) {
+            var components = this.products.stream().map(p -> {
+                Map<String, Object> detailMap = Map.of(
+                        "price", p.getDetail() != null ? p.getDetail().getPrice() : "0",
+                        "image", p.getDetail() != null ? p.getDetail().getImage() : ""
+                );
+
+                Map<String, Object> productMap = new java.util.LinkedHashMap<>();
+                productMap.put("type", p.getType());
+                productMap.put("description", p.getDescription());
+                productMap.put("name", p.getName());
+                productMap.put("detail", detailMap);
+                return productMap;
+            }).toList();
+
+            resultMap.put("components", components);
+        } else {
+            resultMap.put("components", java.util.List.of());
+        }
+
+        return resultMap;
     }
 
     @Data

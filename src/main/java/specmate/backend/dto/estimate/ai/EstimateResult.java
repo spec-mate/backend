@@ -80,9 +80,14 @@ public class EstimateResult {
         @JsonAlias({"category", "type"})
         private String type;
 
+<<<<<<< HEAD
         @JsonProperty("name")
         @JsonAlias({"matched_name"})
         private String name;
+=======
+        @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+        private String aiName; // GPT 생성 이름
+>>>>>>> develop
 
         private String description;
 

@@ -21,6 +21,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AiEstimateService {
 
+<<<<<<< HEAD
+=======
+    private final EstimateProductRepository estimateProductRepository;
+>>>>>>> develop
     private final AiEstimateRepository aiEstimateRepository;
     private final EstimateProductRepository estimateProductRepository;
     private final UserRepository userRepository;
@@ -145,6 +149,7 @@ public class AiEstimateService {
         return aiEstimate;
     }
 
+<<<<<<< HEAD
     private boolean shouldReplace(String type, String userInput) {
         return userInput != null && userInput.toLowerCase().contains(type);
     }
@@ -188,6 +193,9 @@ public class AiEstimateService {
     }
 
     /** 견적 제품 저장 */
+=======
+    /** 제품 매핑 (자동 저장 시 사용) */
+>>>>>>> develop
     @Transactional
     public void saveEstimateProducts(AiEstimate aiEstimate, EstimateResult result) {
         if (result == null || result.getProducts() == null) return;
@@ -241,7 +249,62 @@ public class AiEstimateService {
         }
     }
 
+<<<<<<< HEAD
     /** 사용자별 견적 목록 조회 */
+=======
+    private void saveEstimateProduct(AiEstimate aiEstimate, Product product, EstimateResult.Product comp) {
+
+        // GPT가 제안한 이름
+        String aiSuggestedName = comp.getMatchedName();
+
+        // DB 매칭된 실제 이름
+        String matchedProductName = product != null ? product.getName() : null;
+
+        EstimateProduct entity = EstimateProduct.builder()
+                .aiEstimate(aiEstimate)
+                .product(product)
+                .aiName(aiSuggestedName)
+                .matchedName(matchedProductName)
+                .similarityScore(productSearchService.getLastSimilarityScore())
+                .matched(product != null)
+                .quantity(1)
+                .unitPrice(parsePrice(comp.getPrice()))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        estimateProductRepository.save(entity);
+    }
+
+    /** 사용자 행동(user_action) 업데이트 */
+    @Transactional
+    public AiEstimateResponse updateUserAction(String aiEstimateId, UserAction action, String userId) {
+        // 견적 조회
+        AiEstimate estimate = aiEstimateRepository.findById(aiEstimateId)
+                .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 AI 견적입니다."));
+
+        // 권한 검증
+        if (!estimate.getUser().getId().equals(userId)) {
+            throw new SecurityException("해당 견적에 대한 권한이 없습니다.");
+        }
+
+        // Enum 검증
+        if (action == null) {
+            throw new IllegalArgumentException("UserAction 값이 없습니다.");
+        }
+
+        // 상태 업데이트
+        estimate.setUserAction(action);
+        estimate.setUpdatedAt(LocalDateTime.now());
+
+        aiEstimateRepository.save(estimate);
+
+        // 응답 생성
+        List<EstimateProduct> products = estimateProductRepository.findAllByAiEstimateId(aiEstimateId);
+        return AiEstimateResponse.fromEntityWithProducts(estimate, products);
+    }
+
+    /** 조회, 삭제 로직 */
+>>>>>>> develop
     @Transactional
     public List<AiEstimateResponse> getEstimatesByUser(String userId) {
         return aiEstimateRepository.findByUserId(userId)

@@ -129,7 +129,6 @@ public class EstimateResultProcessor {
             result.setNotes(getText(root, "notes", ""));
             result.setText(getText(root, "text", getText(root, "content", "")));
 
-            // another_input_text
             if (root.has("another_input_text") && root.get("another_input_text").isArray()) {
                 List<String> qList = new ArrayList<>();
                 for (JsonNode q : root.get("another_input_text")) qList.add(q.asText());
@@ -142,12 +141,51 @@ public class EstimateResultProcessor {
             JsonNode listNode = root.has("components") ? root.get("components")
                     : root.has("products") ? root.get("products") : null;
 
+<<<<<<< HEAD
             if (listNode != null) {
                 if (listNode.isArray()) {
                     for (JsonNode node : listNode) {
                         String type = normalizeType(getText(node, "type",
                                 getText(node, "category", getText(node, "product_type", "unknown"))));
                         parseProductNode(pick, node, type);
+=======
+            // components / products 배열
+            JsonNode listNode = root.has("components") ? root.get("components") :
+                    root.has("products") ? root.get("products") : null;
+
+            if (listNode != null && listNode.isArray()) {
+                for (JsonNode node : listNode) {
+                    Product p = new Product();
+                    p.setId(getText(node, "id", null));
+
+                    String type = getText(node, "type",
+                            getText(node, "category",
+                                    getText(node, "product_type", "unknown")));
+                    p.setType(normalizeType(type));
+
+                    String matched = getText(node, "matched_name", null);
+                    p.setAiName(matched != null ? matched : getText(node, "ai_name", "미선택"));
+                    p.setMatchedName(matched);
+
+                    p.setDescription(getText(node, "description", "선택된 부품 없음"));
+                    p.setPrice(cleanPrice(getText(node, "price", "0")));
+
+                    pick.put(p.getType(), p);
+                }
+            }
+
+            // fallbackMap 적용 (DB matched_name 보정)
+            if (fallbackMap != null && !fallbackMap.isEmpty()) {
+                for (var entry : fallbackMap.entrySet()) {
+                    String type = normalizeType(entry.getKey());
+                    Product fb = entry.getValue();
+                    Product exist = pick.get(type);
+
+                    if (exist == null) {
+                        pick.put(type, fb);
+                    } else if ("미선택".equalsIgnoreCase(exist.getMatchedName()) && fb.getMatchedName() != null) {
+                        exist.setMatchedName(fb.getMatchedName());
+>>>>>>> develop
                     }
                 } else if (listNode.isObject()) {
                     listNode.fieldNames().forEachRemaining(field -> {

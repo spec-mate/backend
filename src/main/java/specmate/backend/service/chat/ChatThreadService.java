@@ -39,7 +39,6 @@ public class ChatThreadService {
         } else {
             log.debug("Thread 이미 존재 (roomId={}, threadId={})", roomId, room.getThread());
         }
-
         return room;
     }
 }

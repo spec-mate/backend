@@ -90,8 +90,15 @@ public class AssistantRunner {
                 .toBodilessEntity();
     }
 
+<<<<<<< HEAD
     /** Assistant Run 생성 */
     private String startRun(String threadId, String assistantId) {
+=======
+    /** Assistant 실행 */
+    private String startRun(String threadId, String instructions) {
+        var body = Map.of("assistant_id", assistantId);
+
+>>>>>>> develop
         var res = openAiRestClient.post()
                 .uri("/threads/{id}/runs", threadId)
                 .body(Map.of("assistant_id", assistantId))
@@ -143,6 +150,7 @@ public class AssistantRunner {
                 .orElse(null);
     }
 
+<<<<<<< HEAD
     @Async("assistantExecutor")
     public CompletableFuture<String> runAsync(String threadId,
                                               String userInput,
@@ -196,6 +204,9 @@ public class AssistantRunner {
         return s == null ? "" : s.replace("\"", "\\\"").trim();
     }
 
+=======
+    /** Record 구조들 */
+>>>>>>> develop
     private record ThreadRes(String id) {}
     private record RunRes(String id, String status) {}
     private record MessagesRes(List<Msg> data) {}

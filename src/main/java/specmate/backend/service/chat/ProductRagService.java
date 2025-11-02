@@ -23,7 +23,7 @@ public class ProductRagService {
             "case", "cpu", "vga", "ram", "ssd", "power", "mainboard", "cooler", "hdd"
     );
 
-    /** type별로 개별 RAG 검색을 수행 (각 부품 1개씩 보장) */
+    /** type별로 개별 RAG 검색 수행 (post-filter 방식) Qdrant의 payload.type 인식 문제 회피용 */
     public RagContext buildRagContext(String userInput) {
         if (userInput == null || userInput.isBlank()) {
             log.warn("입력이 비어 있습니다. RAG 검색을 건너뜁니다.");
@@ -31,53 +31,68 @@ public class ProductRagService {
         }
 
         List<Map<String, Object>> resultsList = new ArrayList<>();
-        Set<String> addedTypes = new HashSet<>();
 
         for (String type : COMPONENT_TYPES) {
             try {
+                // 유사도 검색 (필터 없이 전체 검색)
                 SearchRequest request = SearchRequest.builder()
                         .query(userInput + " " + type)
-                        .topK(5)
-                        .similarityThresholdAll()
+                        .topK(200)
                         .build();
 
                 List<Document> docs = qdrantVectorStore.similaritySearch(request);
 
-                if (!docs.isEmpty()) {
-                    // 중복 타입 방지
-                    if (addedTypes.contains(type)) continue;
+                if (docs.isEmpty()) {
+                    log.warn("[RAG] {} 검색 결과 없음 (fallback 실행)", type);
 
-                    Document doc = docs.get(0);
-                    Map<String, Object> meta = doc.getMetadata();
-
-                    Map<String, Object> comp = new LinkedHashMap<>();
-                    comp.put("type", type);
-                    comp.put("name", meta.getOrDefault("name", "데이터 없음"));
-                    comp.put("description", "추천 부품 설명 없음");
-                    comp.put("detail", Map.of(
-                            "price", meta.getOrDefault("price", "0"),
-                            "image", meta.getOrDefault("image", "")
-                    ));
-
-                    resultsList.add(comp);
-                    addedTypes.add(type);
-                    log.info("[RAG] {} → {}", type, meta.getOrDefault("name", "데이터 없음"));
-                } else {
-                    log.warn("[RAG] {} 타입 결과 없음 (fallback)", type);
+                    docs = qdrantVectorStore.similaritySearch(
+                            SearchRequest.builder().query(type).topK(20).build()
+                    );
                 }
+
+                // Java post-filter 사용
+                Optional<Document> matchOpt = docs.stream()
+                        .filter(d -> {
+                            Object t = d.getMetadata().get("type");
+                            if (t == null) return false;
+                            String metaType = t.toString().toLowerCase(Locale.ROOT).trim();
+                            return metaType.contains(type);
+                        })
+                        .findFirst();
+
+                if (matchOpt.isEmpty()) {
+                    log.warn("[RAG] {} 타입 일치 결과 없음 (skip)", type);
+                    continue;
+                }
+
+                Document doc = matchOpt.get();
+                Map<String, Object> meta = doc.getMetadata();
+
+                Map<String, Object> comp = new LinkedHashMap<>();
+                comp.put("type", type);
+                comp.put("name", meta.getOrDefault("name", "데이터 없음"));
+                comp.put("description", "추천 부품 설명 없음");
+                comp.put("detail", Map.of(
+                        "price", meta.getOrDefault("price", "0"),
+                        "image", meta.getOrDefault("image", "")
+                ));
+
+                resultsList.add(comp);
+                log.info("[RAG] {} → {}", type, meta.getOrDefault("name", "데이터 없음"));
+
             } catch (Exception e) {
-                log.error("[RAG] {} 검색 실패: {}", type, e.getMessage());
+                log.error("[RAG] {} 검색 실패: {}", type, e.getMessage(), e);
             }
         }
 
-        // JSON 문자열화
+        // 결과 JSON 변환
         String ragJson = toJson(resultsList);
         log.info("[DEBUG] RAG JSON (GPT 전달용):\n{}", ragJson);
 
         return new RagContext(ragJson, new HashMap<>());
     }
 
-    /** 기존 EstimateResult 기반 RAG Context (재구성용) */
+    /** 기존 견적 기반 RAG (재구성용) */
     public RagContext buildRagContext(EstimateResult estimateResult) {
         if (estimateResult == null || estimateResult.getProducts() == null) {
             return new RagContext("{}", new HashMap<>());
@@ -93,7 +108,7 @@ public class ProductRagService {
         return new RagContext("{}", fallbackMap);
     }
 
-    /** JSON 문자열 포맷터 */
+    /** JSON Formatter */
     private String toJson(List<Map<String, Object>> list) {
         StringBuilder sb = new StringBuilder("[\n");
         for (int i = 0; i < list.size(); i++) {

@@ -76,7 +76,6 @@ public class EstimateResultProcessor {
             if (cleaned == null || cleaned.isBlank() || "{}".equals(cleaned)) {
                 log.debug("자연어 응답 감지 → text로 저장");
                 EstimateResult result = new EstimateResult();
-                result.setText(gptMessage);
                 result.setProducts(List.of());
                 return result;
             }
@@ -114,7 +113,6 @@ public class EstimateResultProcessor {
                         .mapToInt(pr -> parsePrice(pr.getDetail() != null ? pr.getDetail().getPrice() : "0"))
                         .sum());
                 result.setAnotherInputText(List.of());
-                result.setNotes("사용자 요청 기반 추천 견적");
                 return result;
             }
 
@@ -126,8 +124,6 @@ public class EstimateResultProcessor {
             result.setBuildName(getText(root, "build_name", ""));
             result.setBuildDescription(getText(root, "build_description", ""));
             result.setTotalPrice(parsePrice(getText(root, "total", "0")));
-            result.setNotes(getText(root, "notes", ""));
-            result.setText(getText(root, "text", getText(root, "content", "")));
 
             // another_input_text
             if (root.has("another_input_text") && root.get("another_input_text").isArray()) {

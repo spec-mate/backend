@@ -40,16 +40,33 @@ public class AiEstimateService {
                 Map<String, Object> bestMatch = findBestMatch(ragData, type);
                 if (bestMatch != null) {
                     String name = (String) bestMatch.get("name");
-                    String price = String.valueOf(bestMatch.get("price"));
-                    String image = (String) bestMatch.get("image");
+                    String description = generateShortDescription(bestMatch);
+
+                    String price = null;
+                    String image = null;
+
+                    // price와 image는 detail 내부에서 가져오기
+                    Object detailObj = bestMatch.get("detail");
+                    if (detailObj instanceof Map<?, ?> detailMap) {
+                        price = String.valueOf(detailMap.get("price"));
+                        image = String.valueOf(detailMap.get("image"));
+                    }
+
+                    // 혹시 detail에 없고 루트에 있는 경우 대비
+                    if (price == null && bestMatch.get("price") != null)
+                        price = String.valueOf(bestMatch.get("price"));
+                    if (image == null && bestMatch.get("image") != null)
+                        image = String.valueOf(bestMatch.get("image"));
 
                     EstimateResult.Product p = EstimateResult.Product.builder()
                             .type(type)
                             .name(name)
-                            .description(generateShortDescription(bestMatch))
+                            .description(description)
                             .detail(new EstimateResult.Detail(price, image))
                             .build();
                     matchedProducts.add(p);
+
+                    log.info("[AI 견적 생성] type={}, name={}, price={}, image={}", type, name, price, image);
                 }
             }
             result.setProducts(matchedProducts);

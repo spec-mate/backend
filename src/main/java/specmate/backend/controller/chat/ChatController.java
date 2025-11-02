@@ -46,18 +46,19 @@ public class ChatController {
         return ResponseEntity.ok(room);
     }
 
-    /** 사용자 메시지 전송 (RAG + GPT 견적 생성) */
-    @Operation(summary = "메시지 전송", description = "사용자의 메시지를 받아 GPT 견적 응답을 생성합니다.",
-            security = {@SecurityRequirement(name = "bearerAuth")})
+    /** 사용자 메시지 전송 (RAG + GPT 견적 생성 또는 일반 대화) */
+    @Operation(
+            summary = "메시지 전송",
+            description = "사용자의 메시지를 받아 GPT 견적 응답 또는 일반 대화 응답을 생성합니다.",
+            security = {@SecurityRequirement(name = "bearerAuth")}
+    )
     @PostMapping("/rooms/{roomId}/messages")
-    public ResponseEntity<EstimateResponse> sendMessage(
+    public ResponseEntity<ChatMessageResponse> sendMessage(
             @PathVariable String roomId,
             @RequestBody ChatMessageRequest request
     ) throws IOException {
-        // ChatService에서 EstimateResponse를 바로 받음
-        EstimateResponse response = chatService.handleUserMessage(roomId, request.getPrompt());
+        ChatMessageResponse response = chatService.handleUserMessage(roomId, request.getPrompt());
 
-        // 프론트에 EstimateResponse 반환
         return ResponseEntity.ok(response);
     }
 

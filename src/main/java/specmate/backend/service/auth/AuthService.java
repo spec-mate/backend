@@ -137,4 +137,51 @@ public class AuthService {
 
         return new LoginResponse(newAccessToken, refreshToken, user.getNickname(), user.getEmail());
     }
+
+    // 비밀번호 찾기 - 인증 코드 발송
+    public void sendPasswordResetCode(String email) {
+        User user = userRepository.findByEmail(email)
+            .orElseThrow(() -> new RuntimeException("가입된 이메일이 아닙니다."));
+
+        String code = String.format("%06d", (int)(Math.random() * 1000000));
+        redisTemplate.opsForValue().set("pwreset:" + email, code, Duration.ofMinutes(5));
+        mailService.sendEmail(email, "스펙메이트 비밀번호 재설정 인증번호", "인증번호는 " + code + " 입니다.");
+    }
+
+    // 비밀번호 찾기 - 코드 확인
+    public void verifyPasswordResetCode(String email, String code) {
+        String savedCode = (String) redisTemplate.opsForValue().get("pwreset:" + email);
+
+        if (savedCode == null || !savedCode.equals(code)) {
+            throw new RuntimeException("인증번호가 일치하지 않거나 만료되었습니다.");
+        }
+
+        redisTemplate.opsForValue().set("pwreset:verified:" + email, true, Duration.ofMinutes(10));
+    }
+
+    // 비밀번호 찾기 - 비밀번호 변경
+    public void resetPassword(String email, String newPassword, String confirmPassword) {
+        Boolean verified = (Boolean) redisTemplate.opsForValue().get("pwreset:verified:" + email);
+        if (verified == null || !verified) {
+            throw new RuntimeException("비밀번호 재설정 인증이 완료되지 않았습니다.");
+        }
+
+        if (newPassword == null || confirmPassword == null || !newPassword.equals(confirmPassword)) {
+            throw new RuntimeException("새 비밀번호와 재확인 비밀번호가 일치하지 않습니다.");
+        }
+
+        if (newPassword.length() < 8) {
+            throw new RuntimeException("비밀번호는 최소 8자 이상이어야 합니다.");
+        }
+
+        User user = userRepository.findByEmail(email)
+            .orElseThrow(() -> new RuntimeException("가입된 이메일이 아닙니다."));
+
+        String encodedPw = passwordEncoder.encode(newPassword);
+        user.setPassword(encodedPw);
+        userRepository.save(user);
+
+        redisTemplate.delete("pwreset:" + email);
+        redisTemplate.delete("pwreset:verified:" + email);
+    }
 }

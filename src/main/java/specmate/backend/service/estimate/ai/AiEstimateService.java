@@ -17,6 +17,7 @@ import specmate.backend.repository.chat.ChatRoomRepository;
 import specmate.backend.service.product.ProductSearchService;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -32,7 +33,7 @@ public class AiEstimateService {
 
     /** AI가 자동 생성한 견적 저장 */
     @Transactional
-    public AiEstimate createAiEstimate(ChatRoom room, ChatMessage assistantMsg, EstimateResult result) {
+    public AiEstimate createAiEstimate(ChatRoom room, ChatMessage assistantMsg, EstimateResult result, List<Product> qdrantProducts) {
         if (result == null) {
             throw new IllegalArgumentException("EstimateResult가 null입니다.");
         }
@@ -50,54 +51,152 @@ public class AiEstimateService {
                 .build();
 
         aiEstimateRepository.save(aiEstimate);
-        saveEstimateProducts(aiEstimate, result);
+        saveEstimateProducts(aiEstimate, result, qdrantProducts);
 
         return aiEstimate;
     }
 
-    /** 제품 매핑 (자동 저장 시 사용) */
+    /** 제품 매핑 (자동 저장 시 사용) - Qdrant 검색 결과 사용 */
     @Transactional
-    public void saveEstimateProducts(AiEstimate aiEstimate, EstimateResult result) {
+    public void saveEstimateProducts(AiEstimate aiEstimate, EstimateResult result, List<Product> qdrantProducts) {
         if (result == null || result.getProducts() == null) return;
+
+        log.info("Qdrant 제품 매칭 시작: {} 개 제품 풀에서 매칭 수행", qdrantProducts.size());
 
         for (EstimateResult.Product comp : result.getProducts()) {
             if (comp.getMatchedName() == null || comp.getMatchedName().isBlank()) continue;
 
-            // 임베딩 기반 의미 검색 (GPT가 의미 판단을 이미 수행했으므로 단일 검색)
-            Optional<Product> optionalProduct =
-                    productSearchService.findMostSimilarProduct(comp.getMatchedName(), comp.getType());
+            // Qdrant 결과에서 제품 매칭 (이름 기반 유사도)
+            Optional<Product> matchedProduct = findBestMatchFromQdrant(
+                    comp.getMatchedName(),
+                    comp.getType(),
+                    qdrantProducts
+            );
 
-            if (optionalProduct.isPresent()) {
-                Product matchedProduct = optionalProduct.get();
-                double similarity = productSearchService.getLastSimilarityScore();
+            if (matchedProduct.isPresent()) {
+                Product product = matchedProduct.get();
+                log.info("Qdrant 매칭 성공: '{}' → '{}' (type={})",
+                        comp.getMatchedName(), product.getName(), product.getType());
 
-                // GPT 의미 매칭에 맞게 임계값 완화 (0.75 → 0.5)
-                if (similarity >= 0.5) {
-                    log.info("AI 의미 매칭 성공: '{}' → '{}' (유사도={})",
-                            comp.getMatchedName(), matchedProduct.getName(), String.format("%.2f", similarity));
-
-                    saveEstimateProduct(aiEstimate, matchedProduct, comp);
-                } else {
-                    log.debug("유사도 낮음 ({}) → '{}' 매칭 보류",
-                            String.format("%.2f", similarity), comp.getMatchedName());
-                }
+                saveEstimateProduct(aiEstimate, product, comp, 1.0);
             } else {
-                // 매칭 실패 시 GPT의 판단 보존
-                log.warn("GPT 의미 매칭 실패: '{}'", comp.getMatchedName());
-                EstimateProduct entity = EstimateProduct.builder()
-                        .aiEstimate(aiEstimate)
-                        .aiName(comp.getMatchedName())
-                        .matched(false)
-                        .quantity(1)
-                        .unitPrice(parsePrice(comp.getPrice()))
-                        .createdAt(LocalDateTime.now())
-                        .build();
-                estimateProductRepository.save(entity);
+                // 매칭 실패 시 에러 로깅 (product_id NOT NULL 제약으로 저장 불가)
+                log.error("❌ Qdrant 매칭 실패 - 제품 저장 불가: aiName='{}', type='{}', Qdrant 제품 풀 크기={}",
+                        comp.getMatchedName(), comp.getType(), qdrantProducts.size());
+
+                // Qdrant 제품 풀의 해당 타입 제품 목록 출력
+                List<String> availableProducts = qdrantProducts.stream()
+                        .filter(p -> p.getType().equalsIgnoreCase(comp.getType()))
+                        .map(Product::getName)
+                        .collect(Collectors.toList());
+
+                log.error("   사용 가능한 '{}' 타입 제품: {}", comp.getType(), availableProducts);
+
+                // DB 제약으로 인해 저장하지 않음 (product_id NOT NULL)
+                // TODO: EstimateProduct.product_id를 nullable로 변경하면 매칭 실패 제품도 저장 가능
             }
         }
     }
 
-    private void saveEstimateProduct(AiEstimate aiEstimate, Product product, EstimateResult.Product comp) {
+    /**
+     * Qdrant 결과에서 가장 유사한 제품 찾기
+     */
+    private Optional<Product> findBestMatchFromQdrant(String aiName, String type, List<Product> qdrantProducts) {
+        if (qdrantProducts == null || qdrantProducts.isEmpty()) {
+            log.warn("Qdrant 제품 풀이 비어있음");
+            return Optional.empty();
+        }
+
+        if (aiName == null || aiName.isBlank()) {
+            log.warn("AI 제품명이 비어있음");
+            return Optional.empty();
+        }
+
+        // 정규화: 소문자 변환, 공백/특수문자 제거
+        String normalizedAiName = normalizeProductName(aiName);
+
+        log.debug("제품 매칭 시도: aiName='{}', normalized='{}', type='{}'", aiName, normalizedAiName, type);
+
+        // 타입 일치하는 제품만 필터링
+        List<Product> candidateProducts = qdrantProducts.stream()
+                .filter(p -> p.getType().equalsIgnoreCase(type))
+                .collect(Collectors.toList());
+
+        if (candidateProducts.isEmpty()) {
+            log.warn("타입 '{}' 제품이 Qdrant 결과에 없음", type);
+            return Optional.empty();
+        }
+
+        log.debug("타입 '{}' 후보 제품: {}", type,
+                candidateProducts.stream().map(Product::getName).collect(Collectors.toList()));
+
+        // 1. 정규화된 이름이 정확히 일치
+        Optional<Product> exactMatch = candidateProducts.stream()
+                .filter(p -> normalizeProductName(p.getName()).equals(normalizedAiName))
+                .findFirst();
+
+        if (exactMatch.isPresent()) {
+            log.info("정확 매칭 성공: '{}' → '{}'", aiName, exactMatch.get().getName());
+            return exactMatch;
+        }
+
+        // 2. 정규화된 이름에 포함 (양방향)
+        Optional<Product> containsMatch = candidateProducts.stream()
+                .filter(p -> {
+                    String normalizedDbName = normalizeProductName(p.getName());
+                    return normalizedDbName.contains(normalizedAiName) ||
+                            normalizedAiName.contains(normalizedDbName);
+                })
+                .findFirst();
+
+        if (containsMatch.isPresent()) {
+            log.info("포함 매칭 성공: '{}' → '{}'", aiName, containsMatch.get().getName());
+            return containsMatch;
+        }
+
+        // 3. 주요 키워드 매칭 (공백으로 분리된 단어 중 3개 이상 일치)
+        String[] aiNameTokens = normalizedAiName.split("\\s+");
+        if (aiNameTokens.length >= 2) {
+            Optional<Product> keywordMatch = candidateProducts.stream()
+                    .filter(p -> {
+                        String normalizedDbName = normalizeProductName(p.getName());
+                        long matchCount = Arrays.stream(aiNameTokens)
+                                .filter(token -> token.length() > 2) // 3글자 이상 단어만
+                                .filter(normalizedDbName::contains)
+                                .count();
+                        return matchCount >= Math.min(2, aiNameTokens.length); // 최소 2개 또는 전체의 절반
+                    })
+                    .findFirst();
+
+            if (keywordMatch.isPresent()) {
+                log.info("키워드 매칭 성공: '{}' → '{}'", aiName, keywordMatch.get().getName());
+                return keywordMatch;
+            }
+        }
+
+        // 4. 타입 일치하는 첫 번째 제품 (최후 수단)
+        Optional<Product> fallback = candidateProducts.stream().findFirst();
+        if (fallback.isPresent()) {
+            log.warn("폴백 매칭 (타입만 일치): '{}' → '{}'", aiName, fallback.get().getName());
+            return fallback;
+        }
+
+        log.error("매칭 완전 실패: aiName='{}', type='{}', 후보 제품 수={}", aiName, type, candidateProducts.size());
+        return Optional.empty();
+    }
+
+    /**
+     * 제품명 정규화 (매칭용)
+     */
+    private String normalizeProductName(String name) {
+        if (name == null) return "";
+        return name.toLowerCase()
+                .replaceAll("[\\s\\-_()\\[\\]]+", " ")  // 특수문자를 공백으로
+                .replaceAll("\\s+", " ")                 // 연속 공백 제거
+                .trim();
+    }
+
+    private void saveEstimateProduct(AiEstimate aiEstimate, Product product, EstimateResult.Product comp, double similarityScore) {
 
         // GPT가 제안한 이름
         String aiSuggestedName = comp.getMatchedName();
@@ -105,12 +204,20 @@ public class AiEstimateService {
         // DB 매칭된 실제 이름
         String matchedProductName = product != null ? product.getName() : null;
 
+        // DB 매칭된 이미지 (없으면 AI가 제공한 이미지 사용)
+        String imageUrl = product != null && product.getImage() != null
+                ? product.getImage()
+                : comp.getImage();
+
         EstimateProduct entity = EstimateProduct.builder()
                 .aiEstimate(aiEstimate)
                 .product(product)
                 .aiName(aiSuggestedName)
                 .matchedName(matchedProductName)
-                .similarityScore(productSearchService.getLastSimilarityScore())
+                .type(comp.getType())
+                .description(comp.getDescription())
+                .image(imageUrl)
+                .similarityScore(similarityScore)
                 .matched(product != null)
                 .quantity(1)
                 .unitPrice(parsePrice(comp.getPrice()))

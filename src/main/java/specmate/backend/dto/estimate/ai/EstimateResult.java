@@ -79,5 +79,6 @@ public class EstimateResult {
 
         private String price;
         private String description;
+        private String image; // 제품 이미지 URL
     }
 }

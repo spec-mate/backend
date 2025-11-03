@@ -102,4 +102,11 @@ public class ChatRoomService {
         return chatMessageRepository.findByChatRoomOrderByCreatedAtAsc(room)
                 .stream().map(ChatMessageResponse::fromEntity).toList();
     }
+
+    /** ChatRoom 저장 (Thread ID 업데이트 등) */
+    @Transactional
+    public void saveRoom(ChatRoom room) {
+        room.setUpdatedAt(LocalDateTime.now());
+        chatRoomRepository.save(room);
+    }
 }

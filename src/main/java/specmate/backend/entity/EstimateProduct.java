@@ -25,8 +25,17 @@ public class EstimateProduct {
     private AiEstimate aiEstimate;
 
     @ManyToOne
-    @JoinColumn(name = "product_id", nullable = false)
+    @JoinColumn(name = "product_id", nullable = true)
     private Product product;
+
+    @Column(name = "image", columnDefinition = "text")
+    private String image;
+
+    @Column(nullable = false)
+    private String type;
+
+    @Column(columnDefinition = "text")
+    private String description;
 
     @Column(name = "ai_name", nullable = false)
     private String aiName; // AI가 인식한 부품명

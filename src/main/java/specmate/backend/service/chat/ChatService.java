@@ -147,9 +147,10 @@ public class ChatService {
             return null;
         }
 
-        AiEstimate estimate = aiEstimateService.createAiEstimate(room, assistantMsg, result);
+        // Legacy 흐름: RAG 없이 견적 생성 (빈 제품 리스트 전달)
+        AiEstimate estimate = aiEstimateService.createAiEstimate(room, assistantMsg, result, java.util.Collections.emptyList());
         aiEstimateRepository.save(estimate);
-        aiEstimateService.saveEstimateProducts(estimate, result);
+        aiEstimateService.saveEstimateProducts(estimate, result, java.util.Collections.emptyList());
 
         log.info("신규 견적 생성 완료: roomId={}, estimateId={}", room.getId(), estimate.getId());
         return estimate;
@@ -162,9 +163,10 @@ public class ChatService {
             return null;
         }
 
-        AiEstimate reconfigured = aiEstimateService.createAiEstimate(room, assistantMsg, result);
+        // Legacy 흐름: RAG 없이 견적 생성 (빈 제품 리스트 전달)
+        AiEstimate reconfigured = aiEstimateService.createAiEstimate(room, assistantMsg, result, java.util.Collections.emptyList());
         aiEstimateRepository.save(reconfigured);
-        aiEstimateService.saveEstimateProducts(reconfigured, result);
+        aiEstimateService.saveEstimateProducts(reconfigured, result, java.util.Collections.emptyList());
 
         log.info("견적 재구성 완료: roomId={}, newEstimateId={}", room.getId(), reconfigured.getId());
         return reconfigured;

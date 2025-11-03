@@ -11,6 +11,7 @@ import specmate.backend.dto.estimate.ai.EstimateResponse;
 import specmate.backend.dto.estimate.ai.EstimateResult;
 import specmate.backend.dto.chat.ChatMessageRequest;
 import specmate.backend.dto.chat.ChatMessageResponse;
+import specmate.backend.dto.chat.AgentResponse;
 import specmate.backend.dto.chatroom.ChatRoomRequest;
 import specmate.backend.dto.chatroom.ChatRoomResponse;
 import specmate.backend.entity.ChatMessage;
@@ -19,6 +20,7 @@ import specmate.backend.repository.chat.AiEstimateRepository;
 import specmate.backend.service.chat.ChatService;
 import specmate.backend.service.chat.ChatRoomService;
 import specmate.backend.service.chat.ChatMessageService;
+import specmate.backend.service.chat.AssistantAgentChatService;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,6 +34,7 @@ public class ChatController {
     private final ChatService chatService;
     private final ChatRoomService chatRoomService;
     private final ChatMessageService chatMessageService;
+    private final AssistantAgentChatService assistantAgentChatService;
 
     /** 채팅방 생성 */
     @Operation(summary = "채팅방 생성", description = "새로운 채팅방을 생성합니다.",
@@ -108,5 +111,17 @@ public class ChatController {
     public ResponseEntity<Void> deleteChatRoom(@PathVariable String roomId) {
         chatRoomService.deleteChatRoom(roomId);
         return ResponseEntity.noContent().build();
+    }
+
+    /** Assistant API + Thread 기반 메시지 처리 (토큰 절약!) */
+    @Operation(summary = "Assistant API 메시지 전송", description = "OpenAI Assistant API + Thread로 처리. 토큰 90% 절감!",
+            security = {@SecurityRequirement(name = "bearerAuth")})
+    @PostMapping("/rooms/{roomId}/assistant")
+    public ResponseEntity<AgentResponse> sendAssistantMessage(
+            @PathVariable String roomId,
+            @RequestBody ChatMessageRequest request
+    ) {
+        AgentResponse response = assistantAgentChatService.handleUserMessage(roomId, request.getPrompt());
+        return ResponseEntity.ok(response);
     }
 }

@@ -70,6 +70,21 @@ public class ChatMessageService {
         return chatMessageRepository.findByChatRoomOrderByCreatedAtAsc(room);
     }
 
+    /** 특정 채팅방의 최근 N개 메시지 조회 */
+    public List<ChatMessage> getRecentMessages(ChatRoom room, int limit) {
+        List<ChatMessage> allMessages = chatMessageRepository.findByChatRoomOrderByCreatedAtAsc(room);
+        int size = allMessages.size();
+        if (size <= limit) {
+            return allMessages;
+        }
+        return allMessages.subList(size - limit, size);
+    }
+
+    /** ChatMessage 저장 (일반 저장) */
+    public ChatMessage save(ChatMessage message) {
+        return chatMessageRepository.save(message);
+    }
+
     /** GPT 응답에서 JSON 부분만 추출 */
     private String extractJsonOnly(String s) {
         if (s == null) return null;

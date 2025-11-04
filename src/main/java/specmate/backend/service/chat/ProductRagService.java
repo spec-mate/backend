@@ -37,12 +37,12 @@ public class ProductRagService {
                 // 기본 RAG 검색
                 SearchRequest request = SearchRequest.builder()
                         .query(userInput + " " + type)
-                        .topK(200)
+                        .topK(100)
                         .build();
 
                 List<Document> docs = qdrantVectorStore.similaritySearch(request);
 
-                // 가격 정보 필터: "가격비교예정" 또는 가격이 0인 경우 제외
+                // 가격 정보 필터
                 docs = docs.stream()
                         .filter(d -> {
                             Object priceInfo = d.getMetadata().get("price_info");
@@ -53,22 +53,47 @@ public class ProductRagService {
                         })
                         .collect(Collectors.toList());
 
-                // HDD의 NAS / 서버 / 감시 / 외장 계열 제외
+                // 공통 필터: 노트북 / 서버 / 완제품 / NAS / 미니PC 제외
+                docs = docs.stream()
+                        .filter(d -> {
+                            String name = String.valueOf(d.getMetadata().get("name")).toLowerCase(Locale.ROOT);
+                            return !name.contains("노트북")
+                                    && !name.contains("notebook")
+                                    && !name.contains("so-dimm")
+                                    && !name.contains("sodimm")
+                                    && !name.contains("mini pc")
+                                    && !name.contains("barebone")
+                                    && !name.contains("완제품")
+                                    && !name.contains("server")
+                                    && !name.contains("enterprise")
+                                    && !name.contains("nas")
+                                    && !name.contains("ironwolf")
+                                    && !name.contains("exos")
+                                    && !name.contains("skyhawk")
+                                    && !name.contains("purple")
+                                    && !name.contains("surveillance")
+                                    && !name.contains("gold")
+                                    && !name.contains("expansion")
+                                    && !name.contains("elements");
+                        })
+                        .collect(Collectors.toList());
+
+                // HDD의 NAS / 서버 / 외장 계열 추가 필터
                 if (type.equals("hdd")) {
                     docs = docs.stream()
                             .filter(d -> {
                                 String name = String.valueOf(d.getMetadata().get("name")).toLowerCase(Locale.ROOT);
-                                return !name.contains("ironwolf")    // NAS용
-                                        && !name.contains("exos")     // 서버용
-                                        && !name.contains("red")      // NAS용
-                                        && !name.contains("gold")     // 엔터프라이즈용
-                                        && !name.contains("nas")      // NAS 관련
-                                        && !name.contains("enterprise") // 서버용
-                                        && !name.contains("server")   // 서버용
-                                        && !name.contains("skyhawk")  // 감시용
-                                        && !name.contains("purple")   // 감시용
-                                        && !name.contains("expansion") // 외장형
-                                        && !name.contains("elements"); // 외장형
+                                return !name.contains("ironwolf")
+                                        && !name.contains("exos")
+                                        && !name.contains("red")
+                                        && !name.contains("gold")
+                                        && !name.contains("nas")
+                                        && !name.contains("enterprise")
+                                        && !name.contains("server")
+                                        && !name.contains("skyhawk")
+                                        && !name.contains("purple")
+                                        && !name.contains("expansion")
+                                        && !name.contains("elements");
                             })
                             .collect(Collectors.toList());
                 }
@@ -76,11 +101,11 @@ public class ProductRagService {
                 if (docs.isEmpty()) {
                     log.warn("[RAG] {} 검색 결과 없음 → fallback 실행", type);
                     docs = qdrantVectorStore.similaritySearch(
-                            SearchRequest.builder().query(type).topK(100).build()
+                            SearchRequest.builder().query(type).topK(80).build()
                     );
                 }
 
-                // type 필터 (gpu/vga 교차 허용)
+                // type 필터 (vga/gpu 교차 허용)
                 List<Document> filteredDocs = docs.stream()
                         .filter(d -> {
                             Object t = d.getMetadata().get("type");
@@ -94,12 +119,10 @@ public class ProductRagService {
 
                 Document selectedDoc = null;
 
-                // 필터된 결과가 있으면 첫 번째 문서 선택
+                // 필터된 결과에서 첫 번째 선택
                 if (!filteredDocs.isEmpty()) {
                     selectedDoc = filteredDocs.get(0);
-                }
-                // 필터된 결과가 없으면 동일 type 내에서 pop_rank 높은 제품 선택
-                else {
+                } else {
                     log.warn("[RAG] {} 일치 결과 없음 → 동일 type 내 pop_rank fallback 시도", type);
 
                     selectedDoc = docs.stream()
@@ -122,12 +145,11 @@ public class ProductRagService {
                             .orElse(null);
                 }
 
-                // 그래도 없으면 전체 컬렉션에서 동일 type + pop_rank 순으로 검색
+                // 그래도 없으면 전체 컬렉션 fallback
                 if (selectedDoc == null) {
                     log.warn("[RAG] {} 관련 문서 없음 → 전체 컬렉션 pop_rank fallback", type);
-
                     List<Document> globalDocs = qdrantVectorStore.similaritySearch(
-                            SearchRequest.builder().query(type).topK(300).build()
+                            SearchRequest.builder().query(type).topK(150).build()
                     );
 
                     selectedDoc = globalDocs.stream()
@@ -150,7 +172,6 @@ public class ProductRagService {
                             .orElse(null);
                 }
 
-                // 최종 선택 확인
                 if (selectedDoc == null) {
                     log.warn("[RAG] {} 타입 제품을 찾지 못했습니다. (skip)", type);
                     continue;
@@ -158,8 +179,8 @@ public class ProductRagService {
 
                 // 결과 구성
                 Map<String, Object> meta = selectedDoc.getMetadata();
-
                 boolean isFallback = filteredDocs.isEmpty();
+
                 String description = isFallback ? "인기순위 기반 추천 부품" : "추천 부품 설명 없음";
 
                 Map<String, Object> comp = new LinkedHashMap<>();

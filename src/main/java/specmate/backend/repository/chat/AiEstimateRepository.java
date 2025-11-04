@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import specmate.backend.entity.AiEstimate;
 import specmate.backend.entity.ChatRoom;
+import specmate.backend.entity.enums.UserAction;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,7 +16,7 @@ public interface AiEstimateRepository extends JpaRepository<AiEstimate, String> 
 
     Optional<AiEstimate> findTopByChatRoomOrderByCreatedAtDesc(ChatRoom chatRoom);
 
-    List<AiEstimate> findByUserId(String userId);
+    List<AiEstimate> findByUserIdAndUserAction(String userId, UserAction userAction);
 
     /** 최근 생성된 견적의 estimate_json 컬럼 값만 가져오기 */
     @Query(value = """

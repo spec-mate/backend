@@ -258,10 +258,10 @@ public class AiEstimateService {
         }
     }
 
-    /** 사용자별 견적 목록 조회 */
+    /** 마이페이지: 사용자가 저장한 견적만 조회 */
     @Transactional
     public List<AiEstimateResponse> getEstimatesByUser(String userId) {
-        return aiEstimateRepository.findByUserId(userId)
+        return aiEstimateRepository.findByUserIdAndUserAction(userId, UserAction.SAVED)
                 .stream()
                 .map(estimate -> {
                     List<EstimateProduct> products =

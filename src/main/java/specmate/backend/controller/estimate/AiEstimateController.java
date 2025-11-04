@@ -34,9 +34,7 @@ public class AiEstimateController {
 
     private final AiEstimateService aiEstimateService;
 
-    /**
-     * 마이페이지 - 내 견적 목록 조회
-     */
+    /** 마이페이지 - 내 견적 목록 조회 */
     @Operation(
             summary = "내 견적 목록 조회",
             description = """

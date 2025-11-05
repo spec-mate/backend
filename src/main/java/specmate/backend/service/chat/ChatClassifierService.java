@@ -17,8 +17,18 @@ public class ChatClassifierService {
     /** 사용자 입력을 기반으로 A/B/C 분류 */
     public String classify(String userInput) {
         String lower = userInput.toLowerCase();
-        if (lower.matches(".*(다시|재구성|수정|바꿔|업그레이드|낮춰).*")) return "C";
-        if (lower.matches(".*(견적|추천|조립|pc|컴퓨터).*")) return "A";
+
+        // C: 기존 견적 재구성 요청
+        if (lower.matches(".*(다시|재구성|수정|바꿔|업그레이드|낮춰).*")) {
+            return "C";
+        }
+
+        // A: 새 견적 요청
+        if (lower.matches(".*(견적|추천|조립|pc|컴퓨터).*")
+                && !lower.matches(".*(이유|설명|왜|알려).*")) {
+            return "A";
+        }
+
         return "B";
     }
 

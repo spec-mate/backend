@@ -11,6 +11,7 @@ public class UserSavedEstimateRequest {
 
     private String aiEstimateId;
     private String title;
+    private String buildName;
     private String description;
     private String total;
     private List<ComponentRequest> components;

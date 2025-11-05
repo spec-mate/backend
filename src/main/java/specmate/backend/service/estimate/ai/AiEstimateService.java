@@ -182,9 +182,15 @@ public class AiEstimateService {
                 .sum()
                 : 0;
 
+        // 제목 우선순위: 1. 사용자가 지정한 제목 → 2. AI 견적명(buildName) → 3. 기본값
+        String title = Optional.ofNullable(request.getTitle())
+                .filter(t -> !t.isBlank())
+                .or(() -> Optional.ofNullable(request.getBuildName()))
+                .orElse("자동 생성 견적");
+
         AiEstimate aiEstimate = AiEstimate.builder()
                 .user(user)
-                .title(Optional.ofNullable(request.getTitle()).orElse("이름 없는 견적"))
+                .title(title)
                 .description(request.getDescription())
                 .totalPrice(totalPrice)
                 .status("SUCCESS")
@@ -203,6 +209,7 @@ public class AiEstimateService {
         List<EstimateProduct> products = estimateProductRepository.findAllByAiEstimateId(aiEstimate.getId());
         return UserSavedEstimateResponse.fromEntity(aiEstimate, products);
     }
+
 
     /** 견적 제품 저장 */
     @Transactional

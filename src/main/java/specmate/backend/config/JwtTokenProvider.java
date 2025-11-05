@@ -26,7 +26,7 @@ public class JwtTokenProvider {
         return Jwts.builder()
                 .setSubject(userId)
                 .claim("email", email)
-                .claim("role", "ROLE_" + role.name())   // 권한 추가
+                .claim("role", role.name())   // 권한 추가
                 .setExpiration(new Date(System.currentTimeMillis() + accessTokenValidity))
                 .signWith(key)
                 .compact();

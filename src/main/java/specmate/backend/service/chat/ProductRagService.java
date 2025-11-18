@@ -23,7 +23,7 @@ public class ProductRagService {
             "case", "cpu", "vga", "ram", "ssd", "power", "mainboard", "cooler", "hdd"
     );
 
-    /** type별로 개별 RAG 검색 수행 */
+    /** type별로 개별 RAG 검색 수행 !! */
     public RagContext buildRagContext(String userInput) {
         if (userInput == null || userInput.isBlank()) {
             log.warn("입력이 비어 있습니다. RAG 검색을 건너뜁니다.");

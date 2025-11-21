@@ -10,40 +10,16 @@ import specmate.backend.entity.Product;
 import java.util.List;
 import java.util.Optional;
 
-public interface ProductRepository extends JpaRepository<Product, Integer> {
+public interface ProductRepository extends JpaRepository<Product, Long> { // ID 타입 Long으로 변경
 
-    Page<Product> findByTypeAndManufacturer(String type, String manufacturer, Pageable pageable);
-
-    Page<Product> findByType(String type, Pageable pageable);
-
-    List<Product> findByNameContainingIgnoreCase(String name);
-
-    // 이름 기반 유사 검색
-    @Query("SELECT p FROM Product p WHERE LOWER(p.name) LIKE LOWER(CONCAT('%', :namePart, '%'))")
-    List<Product> findSimilarByName(@Param("namePart") String namePart);
-
-    @Query(value = """
-        SELECT * 
-        FROM products 
-        WHERE type = :type
-          AND (:manufacturer IS NULL OR :manufacturer = '' OR manufacturer = :manufacturer)
-          AND (:keyword IS NULL OR :keyword = '' OR LOWER(name) LIKE LOWER(CONCAT('%', :keyword, '%')))
-        ORDER BY 
-          CASE WHEN :sort = 'priceAsc' 
-               THEN CAST(NULLIF(REGEXP_REPLACE(lowest_price->>'price', '[^0-9]', '', 'g'), '') AS INTEGER) END ASC,
-          CASE WHEN :sort = 'priceDesc' 
-               THEN CAST(NULLIF(REGEXP_REPLACE(lowest_price->>'price', '[^0-9]', '', 'g'), '') AS INTEGER) END DESC,
-          CASE WHEN :sort = 'popRank' 
-               THEN pop_rank END ASC,
-          id ASC
-        """,
-            countQuery = """
-        SELECT count(*) 
-        FROM products 
-        WHERE type = :type
-          AND (:manufacturer IS NULL OR :manufacturer = '' OR manufacturer = :manufacturer)
-          AND (:keyword IS NULL OR :keyword = '' OR LOWER(name) LIKE LOWER(CONCAT('%', :keyword, '%')))
-        """,
-            nativeQuery = true)
-    Page<Product> searchProducts(@Param("type") String type, @Param("manufacturer") String manufacturer, @Param("keyword") String keyword, @Param("sort") String sort, Pageable pageable);
+    // Native Query 대신 JPQL 사용 (훨씬 안전하고 깔끔함)
+    // sort 파라미터는 제거됨 -> Pageable 안에 Sort 정보가 들어있으면 Spring이 알아서 적용함
+    @Query("SELECT p FROM Product p " +
+        "WHERE (:category IS NULL OR p.category = :category) " +
+        "AND (:brand IS NULL OR :brand = '' OR p.brand = :brand) " +
+        "AND (:keyword IS NULL OR :keyword = '' OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%')))")
+    Page<Product> searchProducts(@Param("category") String category,
+        @Param("brand") String brand,
+        @Param("keyword") String keyword,
+        Pageable pageable);
 }

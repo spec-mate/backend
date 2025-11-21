@@ -14,7 +14,9 @@ public class UserEstimateResponse {
     private String userId;
     private String title;
     private String description;
-    private Integer totalPrice;
+
+    private Long totalPrice;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

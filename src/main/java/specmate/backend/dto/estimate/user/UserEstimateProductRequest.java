@@ -6,7 +6,7 @@ import lombok.Setter;
 @Getter
 @Setter
 public class UserEstimateProductRequest {
-    private String productId;
+    private Long productId;
     private String category;
     private Integer quantity = 1;
 }

@@ -3,6 +3,9 @@ package specmate.backend.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.UuidGenerator;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 
@@ -13,31 +16,45 @@ import java.time.LocalDateTime;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@EntityListeners(AuditingEntityListener.class) // JPA Auditing 활성화
 public class UserEstimateProduct {
 
     @Id
-    @GeneratedValue
     @UuidGenerator
-    private String id; // 매핑 PK
+    private String id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_estimate_id", nullable = false)
     private UserEstimate userEstimate;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 
     @Column(nullable = false)
-    private String category; // CPU / GPU / SSD ...
+    private String category;
 
+    @Builder.Default
+    @Column(nullable = false)
     private Integer quantity = 1;
-    private Integer unitPrice;
-    private Integer totalPrice;
 
     @Column(nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private Long unitPrice;
 
     @Column(nullable = false)
-    private LocalDateTime updatedAt = LocalDateTime.now();
+    private Long totalPrice;
+
+    @CreatedDate
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @LastModifiedDate
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    public void calculateTotalPrice() {
+        if (this.unitPrice != null && this.quantity != null) {
+            this.totalPrice = this.unitPrice * this.quantity;
+        }
+    }
 }

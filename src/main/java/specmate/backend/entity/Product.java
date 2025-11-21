@@ -1,59 +1,59 @@
-    package specmate.backend.entity;
+package specmate.backend.entity;
 
-    import com.fasterxml.jackson.annotation.JsonProperty;
-    import com.vladmihalcea.hibernate.type.json.JsonBinaryType;
-    import jakarta.persistence.*;
-    import lombok.*;
-    import org.hibernate.annotations.Type;
+import com.fasterxml.jackson.databind.JsonNode;
+import io.hypersistence.utils.hibernate.type.json.JsonType;
+import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import lombok.*;
+import org.hibernate.annotations.Type;
 
-    import java.util.List;
-    import java.util.Map;
+@Getter
+@Setter
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+@Entity
+@Table(name = "products")
+public class Product {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @Entity
-    @Table(name = "products")
-    @Getter
-    @Setter
-    @Builder
-    @AllArgsConstructor
-    @NoArgsConstructor
-    public class Product {
+    @Column(nullable = false, length = 1024)
+    private String name;
 
-        @Id
-        @GeneratedValue(strategy = GenerationType.IDENTITY)
-        private Integer id;
+    @Column(nullable = false, length = 128)
+    private String brand;
 
-        @Column(nullable = false)
-        private String name;
+    @Column(nullable = false, length = 64)
+    private String category;
 
-        @Column(nullable = false)
-        private String image;
+    @Column(columnDefinition = "TEXT")
+    private String image;
 
-        @JsonProperty("pop_rank")
-        private Integer popRank;
+    @Column(name = "transparent_image", columnDefinition = "TEXT")
+    private String transparentImage;
 
-        @JsonProperty("reg_date")
-        private String regDate;
+    @Column(name = "price_usd", precision = 12, scale = 2)
+    private BigDecimal priceUsd;
 
-        /** 옵션 정보 (Map 구조 → jsonb 저장) */
-        @Type(JsonBinaryType.class)
-        @Column(columnDefinition = "jsonb")
-        private Map<String, Object> options;
+    @Column(name = "price_krw")
+    private Long priceKrw;
 
-        /** 가격 정보 (리스트 구조 → jsonb 저장) */
-        @Type(JsonBinaryType.class)
-        @Column(columnDefinition = "jsonb")
-        @JsonProperty("price_info")
-        private List<Map<String, Object>> priceInfo;
+    @Column(length = 48)
+    private String availability;
 
-        /** 최저가 정보 */
-        @Type(JsonBinaryType.class)
-        @Column(columnDefinition = "jsonb")
-        @JsonProperty("lowest_price")
-        private Map<String, Object> lowestPrice;
+    @Column(name = "product_link", columnDefinition = "TEXT")
+    private String productLink;
 
-        @Column(nullable = false)
-        private String type;
+    @Column(name = "updated_at")
+    private OffsetDateTime updatedAt;
 
-        @Column(nullable = false)
-        private String manufacturer;
-    }
+    @Column(columnDefinition = "jsonb")
+    @Type(JsonType.class)
+    private JsonNode detail;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+}

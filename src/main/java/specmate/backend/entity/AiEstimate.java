@@ -1,8 +1,9 @@
 package specmate.backend.entity;
 
 import jakarta.persistence.*;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.*;
-import org.hibernate.annotations.UuidGenerator;
 
 import java.time.LocalDateTime;
 
@@ -14,38 +15,22 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 public class AiEstimate {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @Id
-    @GeneratedValue
-    @UuidGenerator
-    private String id; // AI 견적 PK
-
-    @ManyToOne
-    @JoinColumn(name = "room_id", nullable = true)
-    private ChatRoom chatRoom;
-
-    @ManyToOne
-    @JoinColumn(name = "user_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
     private User user;
 
-    @ManyToOne
-    @JoinColumn(name = "message_id", nullable = false)
-    private ChatMessage message; // 요구사항 메시지
+    @ManyToOne(fetch = FetchType.LAZY)
+    private ChatRoom chatRoom;
 
-    @Column(columnDefinition = "text")
-    private String description;
+    private String intent;
+    private String intro;
+    private String note;
+    private Long totalPrice;
 
-    @Column(nullable = false)
-    private String title;
+    @OneToMany(mappedBy = "aiEstimate", cascade = CascadeType.ALL)
+    private List<AiEstimateProduct> products = new ArrayList<>();
 
-    private Integer totalPrice;
-
-    @Column(nullable = false)
-    private String status = "active"; // active, updated, deleted
-
-    @Column(nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
-
-    @Column(nullable = false)
-    private LocalDateTime updatedAt = LocalDateTime.now();
+    private LocalDateTime createdAt;
 }

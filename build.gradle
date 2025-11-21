@@ -37,6 +37,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-mail'
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation(enforcedPlatform("org.springframework.ai:spring-ai-bom:1.0.0-M5"))
     implementation 'org.springframework.ai:spring-ai-core:1.0.0-M5'
     implementation 'org.springframework.ai:spring-ai-openai:1.0.0-M5'

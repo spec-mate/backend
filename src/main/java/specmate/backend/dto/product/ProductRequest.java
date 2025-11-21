@@ -1,8 +1,9 @@
 package specmate.backend.dto.product;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.*;
-import java.util.List;
-import java.util.Map;
+
+import java.math.BigDecimal;
 
 @Getter
 @Setter
@@ -11,14 +12,17 @@ import java.util.Map;
 @Builder
 public class ProductRequest {
     private String name;
+    private String brand;
+    private String category;
     private String image;
-    private Integer popRank;
-    private String regDate;
+    private String transparentImage;
 
-    private Map<String, Object> options;
-    private List<Map<String, Object>> priceInfo;
-    private Map<String, Object> lowestPrice;
+    private BigDecimal priceUsd;
+    private Long priceKrw;
 
-    private String type;
-    private String manufacturer;
+    private String availability;
+    private String productLink;
+
+    private JsonNode detail;
+    private String description;
 }

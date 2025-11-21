@@ -1,15 +1,11 @@
 package specmate.backend.entity;
 
-import com.vladmihalcea.hibernate.type.json.JsonBinaryType;
 import jakarta.persistence.*;
 import lombok.*;
-import org.hibernate.annotations.Type;
-import org.hibernate.annotations.UuidGenerator;
-import specmate.backend.entity.enums.MessageStatus;
-import specmate.backend.entity.enums.SenderType;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
-import java.util.Map;
 
 @Entity
 @Table(name = "chat_messages")
@@ -18,39 +14,36 @@ import java.util.Map;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
 public class ChatMessage {
 
-    @Id
-    @GeneratedValue
-    @UuidGenerator
-    private String id;
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "room_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "chat_room_id", nullable = false)
     private ChatRoom chatRoom;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private SenderType sender;
-
-    @Column(columnDefinition = "text", nullable = false)
-    private String content;
-
-    /** AI가 구조화한 JSON 데이터 */
-    @Type(JsonBinaryType.class)
-    @Column(columnDefinition = "jsonb")
-    private Map<String, Object> parsedJson;
+    private Sender sender;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private MessageStatus status = MessageStatus.PENDING;
+    private MessageType type;
 
-    private Integer tokensUsed;
-    private Integer latencyMs;
+    @Column(columnDefinition = "TEXT")
+    private String content;
 
-    @Column(nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private Long relatedEstimateId;
 
-    @Column(nullable = false)
-    private LocalDateTime updatedAt = LocalDateTime.now();
+    @CreatedDate
+    private LocalDateTime createdAt;
+
+    // 내부 Enum 정의
+    public enum Sender {
+        USER, AI
+    }
+
+    public enum MessageType {
+        TALK, ESTIMATE
+    }
 }

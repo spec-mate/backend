@@ -1,9 +1,11 @@
-
 package specmate.backend.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.UuidGenerator;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -16,14 +18,14 @@ import java.util.List;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
+@EntityListeners(AuditingEntityListener.class)
 public class UserEstimate {
 
     @Id
-    @GeneratedValue
     @UuidGenerator
-    private String id; // 사용자 견적 PK
+    private String id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
@@ -31,14 +33,25 @@ public class UserEstimate {
     private String title;
 
     private String description;
-    private Integer totalPrice;
 
+    @Column(name = "total_price")
+    private Long totalPrice;
+
+    @CreatedDate
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @LastModifiedDate
     @Column(nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime updatedAt;
 
-    @Column(nullable = false)
-    private LocalDateTime updatedAt = LocalDateTime.now();
-
+    @Builder.Default
     @OneToMany(mappedBy = "userEstimate", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<UserEstimateProduct> products = new ArrayList<>();
+
+    public void calculateTotalPrice() {
+        this.totalPrice = products.stream()
+            .mapToLong(UserEstimateProduct::getTotalPrice)
+            .sum();
+    }
 }

@@ -1,8 +1,8 @@
 package specmate.backend.service.estimate.user;
 
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import specmate.backend.dto.estimate.user.UserEstimateProductRequest;
 import specmate.backend.dto.estimate.user.UserEstimateProductResponse;
 import specmate.backend.dto.estimate.user.UserEstimateRequest;
@@ -16,12 +16,12 @@ import specmate.backend.repository.estimate.user.UserEstimateRepository;
 import specmate.backend.repository.product.ProductRepository;
 import specmate.backend.repository.user.UserRepository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class UserEstimateService {
 
     private final UserEstimateRepository userEstimateRepository;
@@ -33,16 +33,14 @@ public class UserEstimateService {
     @Transactional
     public UserEstimateResponse createEstimate(UserEstimateRequest req) {
         User user = userRepository.findById(req.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+            .orElseThrow(() -> new RuntimeException("User not found"));
 
         UserEstimate estimate = UserEstimate.builder()
-                .user(user)
-                .title(req.getTitle())
-                .description(req.getDescription())
-                .totalPrice(0)
-                .createdAt(LocalDateTime.now())
-                .updatedAt(LocalDateTime.now())
-                .build();
+            .user(user)
+            .title(req.getTitle())
+            .description(req.getDescription())
+            .totalPrice(0L)
+            .build();
 
         return toEstimateResponse(userEstimateRepository.save(estimate));
     }
@@ -51,52 +49,49 @@ public class UserEstimateService {
     @Transactional
     public UserEstimate getOrCreateDefaultEstimate(String userId) {
         return userEstimateRepository.findByUserId(userId).stream()
-                .findFirst()
-                .orElseGet(() -> {
-                    User user = userRepository.findById(userId)
-                            .orElseThrow(() -> new RuntimeException("User not found"));
-                    UserEstimate newEstimate = UserEstimate.builder()
-                            .user(user)
-                            .title("내 견적")
-                            .description("자동 생성된 견적")
-                            .totalPrice(0)
-                            .createdAt(LocalDateTime.now())
-                            .updatedAt(LocalDateTime.now())
-                            .build();
-                    return userEstimateRepository.save(newEstimate);
-                });
+            .findFirst()
+            .orElseGet(() -> {
+                User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
+
+                UserEstimate newEstimate = UserEstimate.builder()
+                    .user(user)
+                    .title("내 견적")
+                    .description("자동 생성된 견적")
+                    .totalPrice(0L)
+                    .build();
+
+                return userEstimateRepository.save(newEstimate);
+            });
     }
 
     /** 특정 견적에 제품 추가 */
     @Transactional
     public UserEstimateProductResponse addProductToEstimate(String estimateId, UserEstimateProductRequest req, String userId) {
         UserEstimate estimate = userEstimateRepository.findById(estimateId)
-                .orElseThrow(() -> new RuntimeException("Estimate not found"));
+            .orElseThrow(() -> new RuntimeException("Estimate not found"));
 
         if (!estimate.getUser().getId().equals(userId)) {
             throw new RuntimeException("권한이 없습니다.");
         }
 
-        Product product = productRepository.findById(Integer.valueOf(req.getProductId()))
-                .orElseThrow(() -> new RuntimeException("Product not found"));
+        Product product = productRepository.findById(Long.valueOf(req.getProductId()))
+            .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        int unitPrice = Integer.parseInt(product.getLowestPrice().get("price").toString().replace(",", ""));
-        int totalPrice = unitPrice * req.getQuantity();
-
-        LocalDateTime now = LocalDateTime.now();
+        long unitPrice = product.getPriceKrw() != null ? product.getPriceKrw() : 0L;
+        long totalPrice = unitPrice * req.getQuantity();
 
         UserEstimateProduct estimateProduct = UserEstimateProduct.builder()
-                .userEstimate(estimate)
-                .product(product)
-                .category(req.getCategory())
-                .quantity(req.getQuantity())
-                .unitPrice(unitPrice)
-                .totalPrice(totalPrice)
-                .createdAt(now)
-                .updatedAt(now)
-                .build();
+            .userEstimate(estimate)
+            .product(product)
+            .category(req.getCategory())
+            .quantity(req.getQuantity())
+            .unitPrice(unitPrice)
+            .totalPrice(totalPrice)
+            .build();
 
-        estimate.setTotalPrice((estimate.getTotalPrice() == null ? 0 : estimate.getTotalPrice()) + totalPrice);
+        long currentTotal = estimate.getTotalPrice() != null ? estimate.getTotalPrice() : 0L;
+        estimate.setTotalPrice(currentTotal + totalPrice);
 
         return toEstimateProductResponse(userEstimateProductRepository.save(estimateProduct));
     }
@@ -111,16 +106,16 @@ public class UserEstimateService {
     /** 견적에 포함된 제품들 조회 */
     public List<UserEstimateProductResponse> getEstimateProducts(String estimateId) {
         return userEstimateProductRepository.findByUserEstimateId(estimateId)
-                .stream()
-                .map(this::toEstimateProductResponse)
-                .collect(Collectors.toList());
+            .stream()
+            .map(this::toEstimateProductResponse)
+            .collect(Collectors.toList());
     }
 
     /** 특정 견적에서 제품 교체 */
     @Transactional
     public UserEstimateProductResponse replaceProductInEstimate(String estimateProductId, UserEstimateProductRequest req, String userId) {
         UserEstimateProduct estimateProduct = userEstimateProductRepository.findById(estimateProductId)
-                .orElseThrow(() -> new RuntimeException("견적에 포함된 부품이 없습니다."));
+            .orElseThrow(() -> new RuntimeException("견적에 포함된 부품이 없습니다."));
 
         UserEstimate estimate = estimateProduct.getUserEstimate();
 
@@ -128,30 +123,28 @@ public class UserEstimateService {
             throw new RuntimeException("권한이 없습니다.");
         }
 
-        int oldTotalPrice = estimateProduct.getTotalPrice();
-        int currentEstimateTotal = (estimate.getTotalPrice() == null ? 0 : estimate.getTotalPrice());
-        estimate.setTotalPrice(Math.max(currentEstimateTotal - oldTotalPrice, 0));
+        // 기존 제품 가격 차감
+        long oldProductTotal = estimateProduct.getTotalPrice();
+        long currentEstimateTotal = estimate.getTotalPrice() != null ? estimate.getTotalPrice() : 0L;
 
-        Product newProduct = productRepository.findById(Integer.valueOf(req.getProductId()))
-                .orElseThrow(() -> new RuntimeException("부품을 찾을 수 없습니다."));
+        // 새로운 제품 조회
+        Product newProduct = productRepository.findById(Long.valueOf(req.getProductId()))
+            .orElseThrow(() -> new RuntimeException("부품을 찾을 수 없습니다."));
 
-        int unitPrice;
-        try {
-            unitPrice = Integer.parseInt(newProduct.getLowestPrice().get("price").toString().replace(",", ""));
-        } catch (NumberFormatException e) {
-            throw new RuntimeException("Invalid product price format");
-        }
+        long newUnitPrice = newProduct.getPriceKrw() != null ? newProduct.getPriceKrw() : 0L;
+        long newTotalPrice = newUnitPrice * req.getQuantity();
 
-        int newTotalPrice = unitPrice * req.getQuantity();
-
+        // 제품 정보 업데이트
         estimateProduct.setProduct(newProduct);
         estimateProduct.setCategory(req.getCategory());
         estimateProduct.setQuantity(req.getQuantity());
-        estimateProduct.setUnitPrice(unitPrice);
+        estimateProduct.setUnitPrice(newUnitPrice);
         estimateProduct.setTotalPrice(newTotalPrice);
-        estimateProduct.setUpdatedAt(LocalDateTime.now());
+        estimateProduct.calculateTotalPrice(); // 안전장치
 
-        estimate.setTotalPrice((estimate.getTotalPrice() == null ? 0 : estimate.getTotalPrice()) + newTotalPrice);
+        // 견적서 총액 재계산
+        long updatedTotal = currentEstimateTotal - oldProductTotal + newTotalPrice;
+        estimate.setTotalPrice(Math.max(updatedTotal, 0L));
 
         return toEstimateProductResponse(estimateProduct);
     }
@@ -159,16 +152,16 @@ public class UserEstimateService {
     /** 유저의 모든 견적 조회 */
     public List<UserEstimateResponse> getUserEstimates(String userId) {
         return userEstimateRepository.findByUserId(userId)
-                .stream()
-                .map(this::toEstimateResponse)
-                .collect(Collectors.toList());
+            .stream()
+            .map(this::toEstimateResponse)
+            .collect(Collectors.toList());
     }
 
     /** 특정 견적에서 특정 제품 삭제 **/
     @Transactional
     public void removeProductFromEstimate(String estimateProductId, String userId) {
         UserEstimateProduct estimateProduct = userEstimateProductRepository.findById(estimateProductId)
-                .orElseThrow(() -> new RuntimeException("Estimate product not found"));
+            .orElseThrow(() -> new RuntimeException("Estimate product not found"));
 
         UserEstimate estimate = estimateProduct.getUserEstimate();
 
@@ -176,18 +169,19 @@ public class UserEstimateService {
             throw new RuntimeException("권한이 없습니다.");
         }
 
-        int newTotalPrice = (estimate.getTotalPrice() == null ? 0 : estimate.getTotalPrice()) - estimateProduct.getTotalPrice();
-        estimate.setTotalPrice(Math.max(newTotalPrice, 0));
+        // 가격 차감
+        long currentTotal = estimate.getTotalPrice() != null ? estimate.getTotalPrice() : 0L;
+        long productTotal = estimateProduct.getTotalPrice();
+        estimate.setTotalPrice(Math.max(currentTotal - productTotal, 0L));
 
         userEstimateProductRepository.delete(estimateProduct);
     }
-
 
     /** 견적 삭제 */
     @Transactional
     public void deleteEstimate(String estimateId, String userId) {
         UserEstimate estimate = userEstimateRepository.findById(estimateId)
-                .orElseThrow(() -> new RuntimeException("Estimate not found"));
+            .orElseThrow(() -> new RuntimeException("Estimate not found"));
 
         if (!estimate.getUser().getId().equals(userId)) {
             throw new RuntimeException("권한이 없습니다.");
@@ -199,28 +193,29 @@ public class UserEstimateService {
     /** 변환 메서드 */
     private UserEstimateResponse toEstimateResponse(UserEstimate entity) {
         return UserEstimateResponse.builder()
-                .id(entity.getId())
-                .userId(entity.getUser().getId())
-                .title(entity.getTitle())
-                .description(entity.getDescription())
-                .totalPrice(entity.getTotalPrice())
-                .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt())
-                .build();
+            .id(entity.getId())
+            .userId(entity.getUser().getId())
+            .title(entity.getTitle())
+            .description(entity.getDescription())
+            .totalPrice(entity.getTotalPrice()) // Long
+            .createdAt(entity.getCreatedAt())
+            .updatedAt(entity.getUpdatedAt())
+            .build();
     }
 
     private UserEstimateProductResponse toEstimateProductResponse(UserEstimateProduct entity) {
         return UserEstimateProductResponse.builder()
-                .id(entity.getId())
-                .estimateId(entity.getUserEstimate().getId())
-                .productId(entity.getProduct().getId())
-                .productName(entity.getProduct().getName())
-                .category(entity.getCategory())
-                .quantity(entity.getQuantity())
-                .unitPrice(entity.getUnitPrice())
-                .totalPrice(entity.getTotalPrice())
-                .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt())
-                .build();
+            .id(entity.getId())
+            .estimateId(entity.getUserEstimate().getId())
+            .productId(entity.getProduct().getId()) // Long
+            .productName(entity.getProduct().getName())
+            .image(entity.getProduct().getImage())
+            .category(entity.getCategory())
+            .quantity(entity.getQuantity())
+            .unitPrice(entity.getUnitPrice()) // Long
+            .totalPrice(entity.getTotalPrice()) // Long
+            .createdAt(entity.getCreatedAt())
+            .updatedAt(entity.getUpdatedAt())
+            .build();
     }
 }

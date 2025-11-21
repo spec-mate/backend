@@ -13,7 +13,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import specmate.backend.dto.product.ProductRequest;
 import specmate.backend.dto.product.ProductResponse;
-import specmate.backend.entity.Product;
 import specmate.backend.service.product.ProductService;
 
 import java.util.List;
@@ -33,19 +32,28 @@ public class ProductController {
         return ResponseEntity.ok(productService.getAllProducts());
     }
 
-    @Operation(summary = "상품 Type별 조회", description = "특정 type의 상품을 조회합니다. " + "옵션: manufacturer(제조사), sort(priceAsc, priceDesc, popRank), keyword(상품명 검색)")
+    @Operation(summary = "상품 Category별 조회", description = "특정 Category의 상품을 조회합니다. " +
+        "옵션: brand(브랜드), sort(low:가격낮은순, high:가격높은순, latest:최신순), keyword(상품명 검색)")
     @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ProductResponse.class)))
-    @GetMapping("/type/{type}")
-    public ResponseEntity<Page<ProductResponse>> getProductsByType(@PathVariable String type, @RequestParam(required = false) String manufacturer, @RequestParam(required = false, defaultValue = "popRank") String sort, @RequestParam(required = false) String keyword, @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "10") int size) {
+    @GetMapping("/category/{category}")
+    public ResponseEntity<Page<ProductResponse>> getProductsByCategory(
+        @PathVariable String category,
+        @RequestParam(required = false) String brand,
+        @RequestParam(required = false, defaultValue = "latest") String sort,
+        @RequestParam(required = false) String keyword,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "10") int size) {
+
         Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(productService.getProductsByType(type, manufacturer, sort, keyword, pageable));
+
+        return ResponseEntity.ok(productService.getProductsByCategory(category, brand, sort, keyword, pageable));
     }
 
     @Operation(summary = "상품 단건 조회", description = "상품 ID를 이용해 특정 상품 정보를 조회합니다.")
     @ApiResponse(responseCode = "200", description = "상품 조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ProductResponse.class)))
     @ApiResponse(responseCode = "404", description = "상품을 찾을 수 없음")
     @GetMapping("/{id}")
-    public ResponseEntity<ProductResponse> getProduct(@PathVariable Integer id) {
+    public ResponseEntity<ProductResponse> getProduct(@PathVariable Long id) {
         return ResponseEntity.ok(productService.getProduct(id));
     }
 
@@ -60,7 +68,7 @@ public class ProductController {
     @ApiResponse(responseCode = "200", description = "상품 수정 성공", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ProductResponse.class)))
     @ApiResponse(responseCode = "404", description = "상품을 찾을 수 없음")
     @PutMapping("/{id}")
-    public ResponseEntity<ProductResponse> updateProduct(@PathVariable Integer id, @RequestBody ProductRequest request) {
+    public ResponseEntity<ProductResponse> updateProduct(@PathVariable Long id, @RequestBody ProductRequest request) {
         return ResponseEntity.ok(productService.updateProduct(id, request));
     }
 
@@ -68,7 +76,7 @@ public class ProductController {
     @ApiResponse(responseCode = "204", description = "상품 삭제 성공")
     @ApiResponse(responseCode = "404", description = "상품을 찾을 수 없음")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteProduct(@PathVariable Integer id) {
+    public ResponseEntity<Void> deleteProduct(@PathVariable Long id) {
         productService.deleteProduct(id);
         return ResponseEntity.noContent().build();
     }

@@ -12,12 +12,17 @@ import java.time.LocalDateTime;
 public class UserEstimateProductResponse {
     private String id;
     private String estimateId;
-    private Integer productId;
+
+    private Long productId;
     private String productName;
+    private String image;
+
     private String category;
     private Integer quantity;
-    private Integer unitPrice;
-    private Integer totalPrice;
+
+    private Long unitPrice;
+    private Long totalPrice;
+
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }

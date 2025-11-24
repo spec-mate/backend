@@ -16,7 +16,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> { // ID 
         "WHERE (:category IS NULL OR p.category = :category) " +
         "AND (:brand IS NULL OR :brand = '' OR p.brand = :brand) " +
         "AND (:keyword IS NULL OR :keyword = '' OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
-        "AND p.availability = 'In Stock' || 'Available'")
+        "AND p.availability IN ('In Stock', 'Available')")
     Page<Product> searchProducts(
         @Param("category") String category,
         @Param("brand") String brand,

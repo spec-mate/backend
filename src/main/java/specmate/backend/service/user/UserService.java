@@ -2,8 +2,6 @@ package specmate.backend.service.user;
 
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import specmate.backend.dto.user.UserUpdateRequest;
@@ -18,32 +16,21 @@ public class UserService {
     private final UserRepository userRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    // 모든 유저 정보 조회
+    // 모든 유저 정보 조회 (ADMIN 전용)
     public List<User> findAllUsers() {
         return userRepository.findAll();
     }
 
-    // 로그인한 사용자의 Email 조회
-    private String getCurrentUserEmail() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new IllegalStateException("로그인 상태가 아닙니다.");
-        }
-        return authentication.getName();
-    }
-
     // 내 정보 가져오기
-    public User getMyInfo() {
-        String email = getCurrentUserEmail();
-        return userRepository.findByEmail(email)
+    public User getMyInfo(String userId) {
+        return userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 유저를 찾을 수 없습니다."));
     }
 
     // 정보 수정
     @Transactional
-    public User updateMyInfo(UserUpdateRequest req) {
-        String email = getCurrentUserEmail();
-        User user = userRepository.findByEmail(email)
+    public User updateMyInfo(String userId, UserUpdateRequest req) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 유저를 찾을 수 없습니다."));
 
         if (req.getNickname() != null && !req.getNickname().isBlank()) {
@@ -60,9 +47,8 @@ public class UserService {
 
     // 내 계정 삭제
     @Transactional
-    public void deleteMyAccount() {
-        String email = getCurrentUserEmail();
-        User user = userRepository.findByEmail(email)
+    public void deleteMyAccount(String userId) {
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("해당 유저를 찾을 수 없습니다."));
         userRepository.delete(user);
     }

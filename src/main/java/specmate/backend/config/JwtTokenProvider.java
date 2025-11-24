@@ -12,7 +12,6 @@ import java.util.Date;
 @Component
 public class JwtTokenProvider {
 
-//    private final Key key = Keys.secretKeyFor(SignatureAlgorithm.HS256);
     private final Key key;
     private final long accessTokenValidity = 1000L * 60 * 30;
     private final long refreshTokenValidity = 1000L * 60 * 60 * 24 * 7;
@@ -40,31 +39,6 @@ public class JwtTokenProvider {
                 .signWith(key)
                 .compact();
     }
-
-//    // 토큰내 유저 ID 추출
-//    public String getUserId(String token) {
-//        return Jwts.parserBuilder().setSigningKey(key).build()
-//                .parseClaimsJws(token).getBody().getSubject();
-//    }
-//
-//    public String getRole(String token) {
-//        return Jwts.parserBuilder()
-//                .setSigningKey(key)
-//                .build()
-//                .parseClaimsJws(token)
-//                .getBody()
-//                .get("role", String.class);
-//    }
-//
-//    // 토큰 내 Email 추출
-//    public String getEmail(String token) {
-//        return Jwts.parserBuilder()
-//                .setSigningKey(key)
-//                .build()
-//                .parseClaimsJws(token)
-//                .getBody()
-//                .get("email", String.class);
-//    }
 
     /** Claims 공통 추출 */
     private Claims parseClaims(String token) {

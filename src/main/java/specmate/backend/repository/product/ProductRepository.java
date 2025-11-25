@@ -23,4 +23,6 @@ public interface ProductRepository extends JpaRepository<Product, Long> { // ID 
         @Param("keyword") String keyword,
         Pageable pageable
     );
+
+    Optional<Product> findByName(String name);
 }

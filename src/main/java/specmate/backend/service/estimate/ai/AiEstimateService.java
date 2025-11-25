@@ -14,6 +14,7 @@ import specmate.backend.entity.User;
 import specmate.backend.repository.chat.ChatRoomRepository;
 import specmate.backend.repository.estimate.ai.AiEstimateProductRepository;
 import specmate.backend.repository.estimate.ai.AiEstimateRepository;
+import specmate.backend.repository.product.ProductRepository;
 import specmate.backend.repository.user.UserRepository;
 
 import java.time.LocalDateTime;
@@ -29,6 +30,7 @@ public class AiEstimateService {
     private final AiEstimateProductRepository aiEstimateProductRepository;
     private final UserRepository userRepository;
     private final ChatRoomRepository chatRoomRepository;
+    private final ProductRepository productRepository;
 
     /** AI 견적 생성 */
     @Transactional
@@ -62,12 +64,20 @@ public class AiEstimateService {
             throw new RuntimeException("권한이 없습니다.");
         }
 
+        // Product 테이블에서 이미지 가져오기
+        String imageUrl = req.getImage();
+        if (imageUrl == null || imageUrl.isEmpty()) {
+            imageUrl = productRepository.findByName(req.getName())
+                .map(specmate.backend.entity.Product::getImage)
+                .orElse(null);
+        }
+
         AiEstimateProduct product = AiEstimateProduct.builder()
             .aiEstimate(estimate)
             .category(req.getCategory())
             .name(req.getName())
             .price(req.getPrice() != null ? req.getPrice() : 0L)
-            .image(req.getImage())
+            .image(imageUrl)
             .description(req.getDescription())
             .build();
 

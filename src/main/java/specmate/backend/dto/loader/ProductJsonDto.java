@@ -27,7 +27,7 @@ public class ProductJsonDto {
 
     private String availability;
 
-    @JsonProperty("product_link")
+    @JsonProperty("amazon_link")
     private String productLink;
 
     @JsonProperty("updated_at")

@@ -20,40 +20,37 @@ public class Product {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 1024)
-    private String name;
-
-    @Column(nullable = false, length = 128)
-    private String brand;
+    @Column(name = "pop_rank")
+    private Integer popRank;
 
     @Column(nullable = false, length = 64)
     private String category;
 
+    @Column(nullable = false, length = 1024)
+    private String name;
+
+    @Column(nullable = false, length = 128)
+    private String manufacturer;
+
+    @Column(nullable = false)
+    private Long price;
+
+    @Column(length = 32)
+    private String status;
+
     @Column(columnDefinition = "TEXT")
     private String image;
 
-    @Column(name = "transparent_image", columnDefinition = "TEXT")
-    private String transparentImage;
-
-    @Column(name = "price_usd", precision = 12, scale = 2)
-    private BigDecimal priceUsd;
-
-    @Column(name = "price_krw")
-    private Long priceKrw;
-
-    @Column(length = 48)
-    private String availability;
+    @Column(columnDefinition = "jsonb")
+    @Type(JsonType.class)
+    private JsonNode specs;
 
     @Column(name = "product_link", columnDefinition = "TEXT")
     private String productLink;
 
-    @Column(name = "updated_at")
-    private OffsetDateTime updatedAt;
-
-    @Column(columnDefinition = "jsonb")
-    @Type(JsonType.class)
-    private JsonNode detail;
-
     @Column(columnDefinition = "TEXT")
     private String description;
+
+    @Column(name = "updated_at")
+    private OffsetDateTime updatedAt;
 }

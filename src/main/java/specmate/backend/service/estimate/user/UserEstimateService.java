@@ -78,7 +78,7 @@ public class UserEstimateService {
         Product product = productRepository.findById(Long.valueOf(req.getProductId()))
             .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        long unitPrice = product.getPriceKrw() != null ? product.getPriceKrw() : 0L;
+        long unitPrice = product.getPrice() != null ? product.getPrice() : 0L;
         long totalPrice = unitPrice * req.getQuantity();
 
         UserEstimateProduct estimateProduct = UserEstimateProduct.builder()
@@ -131,7 +131,7 @@ public class UserEstimateService {
         Product newProduct = productRepository.findById(Long.valueOf(req.getProductId()))
             .orElseThrow(() -> new RuntimeException("부품을 찾을 수 없습니다."));
 
-        long newUnitPrice = newProduct.getPriceKrw() != null ? newProduct.getPriceKrw() : 0L;
+        long newUnitPrice = newProduct.getPrice() != null ? newProduct.getPrice() : 0L;
         long newTotalPrice = newUnitPrice * req.getQuantity();
 
         // 제품 정보 업데이트

@@ -1,38 +1,28 @@
 package specmate.backend.dto.loader;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.math.BigDecimal;
+import java.util.List;
 
 @Getter @Setter
 @NoArgsConstructor
 public class ProductJsonDto {
-    private String name;
-    private String brand;
+    @JsonProperty("pop_rank")
+    private Integer popRank;
+
     private String category;
+    private String name;
+    private String manufacturer;
+    private Long price;
+    private String status;
     private String image;
+    private List<String> specs;
 
-    @JsonProperty("transparent_image")
-    private String transparentImage;
-
-    @JsonProperty("price_usd")
-    private BigDecimal priceUsd;
-
-    @JsonProperty("price_krw")
-    private Long priceKrw;
-
-    private String availability;
-
-    @JsonProperty("amazon_link")
+    @JsonProperty("product_link")
     private String productLink;
 
-    @JsonProperty("updated_at")
-    private String updatedAt;
-
-    private JsonNode detail;
     private String description;
 }

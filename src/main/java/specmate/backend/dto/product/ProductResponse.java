@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import lombok.*;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
 @Getter
@@ -14,20 +13,15 @@ import java.time.OffsetDateTime;
 @Builder
 public class ProductResponse implements Serializable {
     private Long id;
-    private String name;
-    private String brand;
+    private Integer popRank;
     private String category;
+    private String name;
+    private String manufacturer;
+    private Long price;
+    private String status;
     private String image;
-    private String transparentImage;
-
-    private BigDecimal priceUsd;
-    private Long priceKrw;
-
-    private String availability;
+    private JsonNode specs;
     private String productLink;
-
-    private OffsetDateTime updatedAt;
-
-    private JsonNode detail;
     private String description;
+    private OffsetDateTime updatedAt;
 }

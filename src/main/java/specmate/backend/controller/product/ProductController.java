@@ -33,12 +33,12 @@ public class ProductController {
     }
 
     @Operation(summary = "상품 Category별 조회", description = "특정 Category의 상품을 조회합니다. " +
-        "옵션: brand(브랜드), sort(low:가격낮은순, high:가격높은순, latest:최신순), keyword(상품명 검색)")
+        "옵션: manufacturer(제조사), sort(low:가격낮은순, high:가격높은순, latest:최신순), keyword(상품명 검색)")
     @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(implementation = ProductResponse.class)))
     @GetMapping("/category/{category}")
     public ResponseEntity<Page<ProductResponse>> getProductsByCategory(
         @PathVariable String category,
-        @RequestParam(required = false) String brand,
+        @RequestParam(required = false) String manufacturer,
         @RequestParam(required = false, defaultValue = "latest") String sort,
         @RequestParam(required = false) String keyword,
         @RequestParam(defaultValue = "0") int page,
@@ -46,7 +46,7 @@ public class ProductController {
 
         Pageable pageable = PageRequest.of(page, size);
 
-        return ResponseEntity.ok(productService.getProductsByCategory(category, brand, sort, keyword, pageable));
+        return ResponseEntity.ok(productService.getProductsByCategory(category, manufacturer, sort, keyword, pageable));
     }
 
     @Operation(summary = "상품 단건 조회", description = "상품 ID를 이용해 특정 상품 정보를 조회합니다.")

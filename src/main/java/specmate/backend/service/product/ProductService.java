@@ -30,45 +30,43 @@ public class ProductService {
     private ProductResponse toResponse(Product product) {
         return ProductResponse.builder()
             .id(product.getId())
-            .name(product.getName())
-            .brand(product.getBrand())
+            .popRank(product.getPopRank())
             .category(product.getCategory())
+            .name(product.getName())
+            .manufacturer(product.getManufacturer())
+            .price(product.getPrice())
+            .status(product.getStatus())
             .image(product.getImage())
-            .transparentImage(product.getTransparentImage())
-            .priceUsd(product.getPriceUsd())
-            .priceKrw(product.getPriceKrw())
-            .availability(product.getAvailability())
+            .specs(product.getSpecs())
             .productLink(product.getProductLink())
-            .updatedAt(product.getUpdatedAt())
-            .detail(product.getDetail())
             .description(product.getDescription())
+            .updatedAt(product.getUpdatedAt())
             .build();
     }
 
     private Product toEntity(ProductRequest req) {
         return Product.builder()
-            .name(req.getName())
-            .brand(req.getBrand())
+            .popRank(req.getPopRank())
             .category(req.getCategory())
+            .name(req.getName())
+            .manufacturer(req.getManufacturer())
+            .price(req.getPrice())
+            .status(req.getStatus())
             .image(req.getImage())
-            .transparentImage(req.getTransparentImage())
-            .priceUsd(req.getPriceUsd())
-            .priceKrw(req.getPriceKrw())
-            .availability(req.getAvailability())
+            .specs(req.getSpecs())
             .productLink(req.getProductLink())
-            .detail(req.getDetail())
             .description(req.getDescription())
             .updatedAt(OffsetDateTime.now())
             .build();
     }
 
-    public Page<ProductResponse> getProductsByCategory(String category, String brand, String sort, String keyword, Pageable pageable) {
+    public Page<ProductResponse> getProductsByCategory(String category, String manufacturer, String sort, String keyword, Pageable pageable) {
 
         Pageable sortedPageable = createSortedPageable(pageable, sort);
 
         String cacheKey = "products:" +
             (category != null ? category : "all") + ":" +
-            (brand != null ? brand : "all") + ":" +
+            (manufacturer != null ? manufacturer : "all") + ":" +
             (keyword != null ? keyword : "") + ":" +
             (sort != null ? sort : "latest") + ":" +
             pageable.getPageNumber() + ":" + pageable.getPageSize();
@@ -80,7 +78,7 @@ public class ProductService {
             return (Page<ProductResponse>) cached;
         }
 
-        Page<Product> products = productRepository.searchProducts(category, brand, keyword, sortedPageable);
+        Page<Product> products = productRepository.searchProducts(category, manufacturer, keyword, sortedPageable);
 
         Page<ProductResponse> response = products.map(this::toResponse);
 
@@ -96,10 +94,10 @@ public class ProductService {
         } else {
             switch (sort) {
                 case "high":
-                    sortSpec = Sort.by("priceKrw").descending();
+                    sortSpec = Sort.by("price").descending();
                     break;
                 case "low":
-                    sortSpec = Sort.by("priceKrw").ascending();
+                    sortSpec = Sort.by("price").ascending();
                     break;
                 case "latest":
                 default:
@@ -134,16 +132,15 @@ public class ProductService {
         Product product = productRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Product not found"));
 
-        product.setName(req.getName());
-        product.setBrand(req.getBrand());
+        product.setPopRank(req.getPopRank());
         product.setCategory(req.getCategory());
+        product.setName(req.getName());
+        product.setManufacturer(req.getManufacturer());
+        product.setPrice(req.getPrice());
+        product.setStatus(req.getStatus());
         product.setImage(req.getImage());
-        product.setTransparentImage(req.getTransparentImage());
-        product.setPriceUsd(req.getPriceUsd());
-        product.setPriceKrw(req.getPriceKrw());
-        product.setAvailability(req.getAvailability());
+        product.setSpecs(req.getSpecs());
         product.setProductLink(req.getProductLink());
-        product.setDetail(req.getDetail());
         product.setDescription(req.getDescription());
         product.setUpdatedAt(OffsetDateTime.now());
 

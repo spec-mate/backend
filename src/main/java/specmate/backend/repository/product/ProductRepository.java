@@ -7,19 +7,18 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import specmate.backend.entity.Product;
 
-import java.util.List;
 import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product, Long> { // ID 타입 Long으로 변경
 
     @Query("SELECT p FROM Product p " +
         "WHERE (:category IS NULL OR p.category = :category) " +
-        "AND (:brand IS NULL OR :brand = '' OR p.brand = :brand) " +
+        "AND (:manufacturer IS NULL OR :manufacturer = '' OR p.manufacturer = :manufacturer) " +
         "AND (:keyword IS NULL OR :keyword = '' OR LOWER(p.name) LIKE LOWER(CONCAT('%', :keyword, '%'))) " +
-        "AND p.availability IN ('In Stock', 'Available')")
+        "AND p.status = 'NORMAL'")
     Page<Product> searchProducts(
         @Param("category") String category,
-        @Param("brand") String brand,
+        @Param("manufacturer") String manufacturer,
         @Param("keyword") String keyword,
         Pageable pageable
     );

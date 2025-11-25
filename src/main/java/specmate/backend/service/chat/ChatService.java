@@ -18,6 +18,7 @@ import specmate.backend.repository.user.UserRepository;
 import specmate.backend.repository.estimate.ai.AiEstimateRepository;
 import specmate.backend.repository.chat.ChatMessageRepository;
 import specmate.backend.repository.chat.ChatRoomRepository;
+import specmate.backend.repository.product.ProductRepository;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -33,6 +34,7 @@ public class ChatService {
     private final ChatMessageRepository chatMessageRepository;
     private final AiEstimateRepository aiEstimateRepository;
     private final UserRepository userRepository;
+    private final ProductRepository productRepository;
     private final WebClient webClient;
 
     @Value("${ai.server.url}")
@@ -127,11 +129,17 @@ public class ChatService {
 
                 if (comp == null) continue;
 
+                // Product 테이블에서 이미지 가져오기
+                String imageUrl = productRepository.findByName(comp.getName())
+                    .map(specmate.backend.entity.Product::getImage)
+                    .orElse(null);
+
                 AiEstimateProduct product = AiEstimateProduct.builder()
                     .aiEstimate(estimate)
                     .category(categoryKey) // cpu, gpu ...
                     .name(comp.getName())
                     .price(comp.getPrice())
+                    .image(imageUrl)
                     .description(comp.getDescription())
                     .build();
 

@@ -13,5 +13,6 @@ public class AiEstimateProductResponse {
     private String category;
     private String name;
     private Long price;
+    private String image;
     private String description;
 }

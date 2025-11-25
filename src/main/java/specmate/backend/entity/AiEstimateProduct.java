@@ -20,6 +20,9 @@ public class AiEstimateProduct {
     private String name;
     private Long price;
 
+    @Column(columnDefinition = "TEXT")
+    private String image;
+
     @Column(length = 1000)
     private String description; // AI가 설명한 내용
 }

@@ -67,6 +67,7 @@ public class AiEstimateService {
             .category(req.getCategory())
             .name(req.getName())
             .price(req.getPrice() != null ? req.getPrice() : 0L)
+            .image(req.getImage())
             .description(req.getDescription())
             .build();
 
@@ -177,6 +178,7 @@ public class AiEstimateService {
             .category(entity.getCategory())
             .name(entity.getName())
             .price(entity.getPrice())
+            .image(entity.getImage())
             .description(entity.getDescription())
             .build();
     }

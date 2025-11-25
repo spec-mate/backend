@@ -9,5 +9,6 @@ public class AiEstimateProductRequest {
     private String category;
     private String name;
     private Long price;
+    private String image;
     private String description;
 }
